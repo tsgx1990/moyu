@@ -2,7 +2,7 @@
 
 What moyu protects, against whom, and — just as important — what it does not.
 This is the reference the [security policy](../SECURITY.md) scopes reports
-against. It describes moyu 0.2.x; the cryptographic core is
+against. It describes moyu 0.3.x; the cryptographic core is
 [MDK](https://github.com/marmot-protocol/mdk) (Marmot protocol = MLS
 RFC 9420 over Nostr), and this document does not restate MLS's own analysis.
 
@@ -199,7 +199,18 @@ RFC 9420 over Nostr), and this document does not restate MLS's own analysis.
 
 ### Known unfixed advisories
 
-None with a vulnerability classification as of 2026-09-30. Transitive crates
+None with a vulnerability classification as of 2026-09-30. Two soundness
+advisories (RustSec *unsound*, which GitHub also lists as vulnerabilities)
+are open in APIs that neither moyu nor its dependencies call:
+
+- `lru` 0.12 `IterMut` (RUSTSEC-2026-0002), via `ratatui` 0.29, which moyu
+  keeps at the version MDK uses. ratatui's layout cache only calls
+  `get_or_insert`, `resize` and `cap`.
+- `glib` 0.18 `VariantStrIter` (RUSTSEC-2024-0429), via the GTK stack Tauri
+  uses on Linux (desktop app only). Fixed in glib 0.20, which Tauri has not
+  moved to yet.
+
+Transitive crates
 flagged *unmaintained* by RustSec (`instant`, `paste`, `proc-macro-error2`,
 `nostr-relay-pool` 0.44 — all pulled in by MDK / hax / nostr-sdk) are
 reported as warnings; replacing them is upstream's call and tracked in

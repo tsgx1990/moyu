@@ -6,6 +6,17 @@ SemVer while the project is pre-1.0 (minor bumps may break).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-30
+
+The first release from the public repository. It closes several holes in
+how workspaces admit members (a removed member could be re-added
+automatically, and invite codes never expired), sanitizes everything other
+members can put on your terminal, routes attachments through `--socks5`, and
+upgrades MDK to v0.9.20. **Before upgrading:** MDK's database migrations are
+forward-only, so back up the data directory first (see "MDK upgraded" below),
+and note that invite codes issued by 0.2.0 now expire after 7 days. Releases
+are now published in this repository, and the Homebrew tap is discontinued.
+
 ### Security
 
 - **A member who was removed from a workspace could be put back
@@ -111,6 +122,15 @@ SemVer while the project is pre-1.0 (minor bumps may break).
   model (message/sender text, contact labels, workspace names), on top of
   ratatui's existing control-character filtering, which does not cover bidi
   overrides.
+- **Dependencies:** `rustls` 0.23.41 → 0.23.45 (RUSTSEC-2026-0285: TLS 1.3
+  handshake messages sent at the wrong encryption level were accepted; the
+  handshake stays authenticated, so this does not let an attacker alter
+  one). The desktop app's build tools `browserslist`, `postcss` and
+  `baseline-browser-mapping` are updated for GHSA-73wf-gq98-2v4g,
+  GHSA-fxqj-rqcc-2cmp and GHSA-w5vr-8v7q-w6rv; they run only while building
+  the app and are not part of it. Two advisories remain open, both
+  soundness issues in APIs that neither moyu nor its dependencies call; see
+  `docs/threat-model.md` ("Known unfixed advisories").
 
 ### Changed
 

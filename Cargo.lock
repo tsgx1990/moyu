@@ -2893,7 +2893,7 @@ dependencies = [
 
 [[package]]
 name = "moyu-cli"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2915,7 +2915,7 @@ dependencies = [
 
 [[package]]
 name = "moyu-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "argon2",
@@ -2940,7 +2940,7 @@ dependencies = [
 
 [[package]]
 name = "moyu-relay-policy"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "serde",
  "serde_json",
