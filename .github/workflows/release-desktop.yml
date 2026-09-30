@@ -128,9 +128,8 @@ jobs:
 
       # No Swatinem/rust-cache here, on purpose: a cache can be written by
       # any workflow run on the default branch and would then be restored
-      # into the job that holds the release token and produces the shipped
-      # binaries. Release builds start cold and compile everything from the
-      # locked sources.
+      # into the job that produces the shipped binaries. Release builds
+      # start cold and compile everything from the locked sources.
 
       - name: Install Linux system dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -149,10 +148,10 @@ jobs:
           version: 9.15.9
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        # No `cache: pnpm`, for the same reason as no rust-cache above: the
+        # shipped installers are built from a cold, lockfile-verified install.
         with:
           node-version: 20
-          cache: pnpm
-          cache-dependency-path: apps/desktop/pnpm-lock.yaml
 
       - name: Install frontend dependencies
         working-directory: apps/desktop
