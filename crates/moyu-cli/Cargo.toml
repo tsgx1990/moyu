@@ -1,0 +1,47 @@
+[package]
+name = "moyu-cli"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+# Inherit the workspace `repository`/`homepage`/`description` so cargo-dist
+# can derive the installer URLs and Homebrew formula fields (see the comment
+# on `repository` in the root Cargo.toml).
+repository.workspace = true
+homepage.workspace = true
+description.workspace = true
+
+[[bin]]
+name = "moyu"
+path = "src/main.rs"
+
+# moyu-cli inherits the workspace `publish = false`, which would otherwise make
+# cargo-dist skip it ("nothing to Release"). This opts the `moyu` binary back
+# into distribution without publishing to crates.io.
+[package.metadata.dist]
+dist = true
+
+[dependencies]
+# Wipe the session-mode unlock passphrase (and each raw stdin line that may
+# carry it) as soon as it has been consumed.
+zeroize = { workspace = true }
+moyu-core = { path = "../moyu-core" }
+
+tokio = { workspace = true }
+clap = { workspace = true }
+# Full-screen chat UI (`moyu tui`, src/tui.rs).
+ratatui = { workspace = true }
+crossterm = { workspace = true }
+rustyline = { workspace = true }
+rpassword = { workspace = true }
+directories = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+hex = { workspace = true }
+# Machine-readable `--json` output for the programmable / bot-facing surface
+# (src/output.rs).
+# serde derive for the session protocol's incoming command envelope.
+serde = { workspace = true }
+serde_json = { workspace = true }

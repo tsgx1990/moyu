@@ -1,0 +1,48 @@
+# gitleaks configuration for this repository (https://github.com/gitleaks/gitleaks).
+# Run through scripts/privacy-check.sh, which the pre-commit hook and CI use.
+#
+# Two jobs: the stock secret rules, and a few rules of our own for things that
+# are not secrets but do not belong in a public repository -- personal paths,
+# private session links, personal mailboxes, a real-looking Nostr secret key.
+title = "moyu"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Lock files hold package checksums, not secrets."
+paths = ['''(^|/)Cargo\.lock$''', '''(^|/)pnpm-lock\.yaml$''']
+
+[[allowlists]]
+description = "A cipher name in prose is not a key."
+regexTarget = "match"
+regexes = ['''XChaCha20-Poly1305''']
+
+[[rules]]
+id = "personal-home-path"
+description = "An absolute path under somebody's home directory. Write `<data-dir>`, `~/…` or a placeholder user instead."
+regex = '''(?:/Users/|/home/|[A-Za-z]:\\Users\\)[A-Za-z0-9._-]+[/\\]'''
+tags = ["privacy"]
+
+  [[rules.allowlists]]
+  description = "Placeholder users and CI runner homes."
+  regexTarget = "match"
+  regexes = ['''(?:/Users/|/home/|\\Users\\)(?:runner|runneradmin|you|me|user|username|alice|bob|example)[/\\]''']
+
+[[rules]]
+id = "private-session-link"
+description = "A link into someone's private AI-assistant session."
+regex = '''claude\.ai/(?:code/session_|chat/|share/)[A-Za-z0-9_-]+'''
+tags = ["privacy"]
+
+[[rules]]
+id = "personal-mailbox"
+description = "An address at a personal mail provider. Use the GitHub private reporting link or an example.com address."
+regex = '''[A-Za-z0-9._%+-]+@(?:qq|gmail|163|126|foxmail|outlook|hotmail|icloud|yahoo|proton(?:mail)?|sina|aliyun)\.(?:com|me|cn)'''
+tags = ["privacy"]
+
+[[rules]]
+id = "nostr-secret-key"
+description = "A full-length Nostr secret key (nsec). Test fixtures must generate keys at run time."
+regex = '''\bnsec1[02-9ac-hj-np-z]{58}\b'''
+tags = ["secret"]

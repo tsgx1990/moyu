@@ -1,0 +1,204 @@
+# Desktop release pipeline (Tauri 2 shell over the moyu-cli sidecar).
+#
+# Triggers on `app-v*` tags — deliberately disjoint from cli-release.yml's
+# `dist-workspace.toml` `tag-namespace = "cli"` (which matches `cli/v*`). The
+# two patterns must never overlap, or one tag would release twice.
+#
+# `workflow_dispatch` is a manual build-only entry point (nothing is
+# uploaded); its `legs=macos` input builds just the two macOS legs.
+#
+# Runners: every leg runs on a GitHub-hosted runner. This repository has no
+# self-hosted runners and must not get one — a public repository's workflows
+# can be triggered by anyone's pull request.
+#
+# Cross-repo publish: `tauri-apps/tauri-action` natively supports uploading
+# the GitHub Release to a different owner/repo than the one running the
+# workflow (inputs `owner`/`repo`, needs a `GITHUB_TOKEN` with write access to
+# that repo — see https://github.com/tauri-apps/tauri-action#readme, "GitHub
+# Configuration"). That's the same cross-repo model cli-release.yml already
+# uses via `GH_RELEASES_TOKEN` + `dist-workspace.toml`'s
+# `github-releases-repo`, just via the Action's own inputs instead of `gh`.
+#
+# RUSTFLAGS: never set globally here. The root .cargo/config.toml pins an
+# 8 MiB Windows link-arg via target-scoped rustflags (moyu.exe stack-overflows
+# on MSVC's 1 MiB default otherwise); a global RUSTFLAGS env var would
+# silently override it. See .cargo/config.toml's own comment.
+name: Release Desktop
+
+on:
+  push:
+    tags:
+      # Exact-release tags only. Prerelease suffixes (app-v0.1.0-rc1) are
+      # deliberately NOT matched: version-check would hard-fail any suffix and
+      # `prerelease: false` is hardcoded below, so v1 simply doesn't support
+      # prereleases end-to-end — better to not trigger than to fail late.
+      - 'app-v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      legs:
+        description: "Matrix legs to build (build-only): all, or just the macOS legs"
+        type: choice
+        options: [all, macos]
+        default: all
+
+env:
+  # Homebrew-moyu is the public distribution repo; the CLI release already
+  # publishes there (dist-workspace.toml's `github-releases-repo`). Same
+  # secret, same target repo — no new secret name introduced.
+  RELEASE_OWNER: tsgx1990
+  RELEASE_REPO: homebrew-moyu
+
+permissions:
+  contents: read
+
+jobs:
+  # Fails fast, before the build matrix starts, if the pushed tag doesn't
+  # match the app version (tag version must equal tauri.conf.json's), and
+  # emits the build matrix (trimmed to the macOS legs on `legs=macos`).
+  plan:
+    name: tag == tauri.conf.json version / matrix
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Compare tag to tauri.conf.json version
+        id: check
+        if: github.event_name == 'push'
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          tag_version="${tag#app-v}"
+          conf_version="$(jq -r '.version' apps/desktop/src-tauri/tauri.conf.json)"
+          echo "tag=$tag tag_version=$tag_version conf_version=$conf_version"
+          if [ "$tag_version" != "$conf_version" ]; then
+            echo "::error::tag $tag (version $tag_version) does not match apps/desktop/src-tauri/tauri.conf.json version $conf_version"
+            exit 1
+          fi
+          echo "version=$conf_version" >> "$GITHUB_OUTPUT"
+
+      # The matrix lives here (not in `strategy.matrix`) so workflow_dispatch
+      # can trim it. Every leg is a native build on a GitHub-hosted runner:
+      # - macos-aarch64: macos-14 (Apple Silicon).
+      # - macos-x64: macos-15-intel. GitHub has announced that hosted Intel
+      #   macOS goes away when the macOS 15 image retires (~Fall 2027);
+      #   before then this leg has to become a cross build on an arm64
+      #   runner (scripts/build-sidecar.mjs already takes
+      #   MOYU_SIDECAR_TARGET for that) or be dropped.
+      # - linux-x64: ubuntu-22.04 (glibc floor, same pin as cargo-dist).
+      # - windows-x64: pinned windows-2022 — the only image the vendored
+      #   SQLCipher+OpenSSL MSVC C stack has been CI-validated on
+      #   (dist-workspace.toml and ci.yml pin the same); `windows-latest`
+      #   would silently roll to newer images the release was never
+      #   validated against.
+      - name: Select matrix legs
+        id: matrix
+        env:
+          LEGS: ${{ inputs.legs || 'all' }}
+        run: |
+          all='[
+            {"platform":"macos-14","os_name":"macos-aarch64"},
+            {"platform":"macos-15-intel","os_name":"macos-x64"},
+            {"platform":"ubuntu-22.04","os_name":"linux-x64"},
+            {"platform":"windows-2022","os_name":"windows-x64"}
+          ]'
+          if [ "$LEGS" = "macos" ]; then
+            include="$(jq -c '[.[] | select(.os_name | startswith("macos"))]' <<<"$all")"
+          else
+            include="$(jq -c '.' <<<"$all")"
+          fi
+          echo "legs=$LEGS include=$include"
+          echo "matrix={\"include\":$include}" >> "$GITHUB_OUTPUT"
+
+  publish-tauri:
+    name: build (${{ matrix.os_name }})
+    needs: [plan]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # rust-toolchain.toml (repo root) pins 1.97.1 + rustfmt + clippy.
+      # rustup resolves toolchain files by walking up from CWD regardless of
+      # cargo workspace boundaries, so this also covers builds run inside
+      # apps/desktop/src-tauri (its own, separate cargo workspace) — same
+      # pattern ci.yml already relies on.
+      - name: Install pinned toolchain
+        run: rustup show
+
+      # No Swatinem/rust-cache here, on purpose: a cache can be written by
+      # any workflow run on the default branch and would then be restored
+      # into the job that holds the release token and produces the shipped
+      # binaries. Release builds start cold and compile everything from the
+      # locked sources.
+
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: ./.github/actions/desktop-linux-deps
+        with:
+          # patchelf/xdg-utils are needed for AppImage/deb bundling
+          # (tauri-action's Linux bundler) — ci.yml's desktop job only runs
+          # clippy/typecheck there, so it doesn't need them. That gap is why
+          # the two apt lists drifted apart before this composite action
+          # existed; now it's an explicit, named difference instead of a
+          # silent one.
+          extra-packages: "patchelf xdg-utils"
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+        with:
+          version: 9.15.9
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: apps/desktop/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: apps/desktop
+        run: pnpm install --frozen-lockfile
+
+      # Native per-runner build (no cross-compiling): sidecar and GUI are
+      # built from the same commit, so their versions can never drift
+      # (scripts/build-sidecar.mjs stages the release binary as
+      # binaries/moyu-<host-triple>[.exe]).
+      - name: Build sidecar
+        run: node scripts/build-sidecar.mjs
+
+      # Every action in this workflow is pinned to a commit SHA: this job
+      # holds the cross-repo write token, and a moved tag must not be able
+      # to swap the code that runs next to it.
+      - name: Build and release (tauri-action)
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1
+        env:
+          # Needs write access to the cross-repo release target
+          # (tsgx1990/homebrew-moyu), which this repo's own GITHUB_TOKEN
+          # cannot have — same token cli-release.yml's `host` job uses.
+          GITHUB_TOKEN: ${{ secrets.GH_RELEASES_TOKEN }}
+        with:
+          projectPath: apps/desktop
+          owner: ${{ env.RELEASE_OWNER }}
+          repo: ${{ env.RELEASE_REPO }}
+          # Only set on an actual tag push; omitted on workflow_dispatch,
+          # which makes tauri-action build without creating/uploading to any
+          # release (see the Action's own "build-only" mode).
+          tagName: ${{ github.event_name == 'push' && github.ref_name || '' }}
+          releaseName: ${{ github.event_name == 'push' && format('moyu desktop {0}', github.ref_name) || '' }}
+          releaseBody: 'See the assets below to download and install moyu desktop.'
+          # The tag doesn't exist yet in the target repo (it's created there
+          # from scratch), so it must be told which commitish of THAT repo to
+          # point at — its default branch, same as any other GitHub Release.
+          releaseCommitish: ${{ github.event_name == 'push' && 'main' || '' }}
+          # Draft + 4-leg matrix has a known check-then-create race: two legs
+          # can occasionally each create their own draft, splitting the assets
+          # (tauri-apps/tauri-action#914). Bounded because drafts are reviewed
+          # by a human before publishing — if two drafts appear for one tag,
+          # delete both and re-run the failed legs.
+          releaseDraft: true
+          prerelease: false
+          # No code signing yet (mac notarization / Windows Authenticode both
+          # deferred, see docs/desktop-install.md) — nothing to configure
+          # here for that.

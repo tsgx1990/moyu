@@ -1,0 +1,67 @@
+# cargo-deny configuration — the supply-chain gate (CI: .github/workflows/security.yml).
+# Four checks: advisories (RustSec), licenses (SPDX allowlist), bans, sources.
+# Every `ignore` must carry a reason and an upstream link; none is allowed to
+# be a silent "make CI green".
+
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+yanked = "deny"
+# Only fail on unmaintained crates moyu depends on DIRECTLY. With this
+# setting cargo-deny does not report transitive ones at all (today: instant,
+# paste, proc-macro-error2 under MDK/hax, nostr-relay-pool under nostr-sdk
+# 0.44); they are upstream's to replace — MDK tracks them in
+# marmot-protocol/mdk#1116 — and `cargo audit` still lists them locally.
+unmaintained = "workspace"
+ignore = [
+]
+
+[licenses]
+version = 2
+# Permissive licenses only for anything that ends up in a shipped binary.
+# GPL-family is deliberately absent: a hit fails the build.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "MPL-2.0",
+    "CC0-1.0",
+    "0BSD",
+    "BSL-1.0",
+    "CDLA-Permissive-2.0",
+]
+confidence-threshold = 0.9
+
+# Upstream MDK crate without a `license` field in its manifest; the whole
+# marmot-protocol/mdk repository is MIT (LICENSE at the repo root).
+[[licenses.clarify]]
+name = "marmot-markdown"
+expression = "MIT"
+license-files = []
+
+[bans]
+multiple-versions = "warn"
+# Path/workspace dependencies inside this workspace carry no version
+# and are not a supply-chain risk; cargo-deny would otherwise flag them.
+wildcards = "allow"
+highlight = "all"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+# The only git dependencies moyu accepts: our MDK fork, and the OpenMLS fork
+# MDK itself pins (see Cargo.toml comments).
+allow-git = [
+    "https://github.com/tsgx1990/mdk",
+    "https://github.com/erskingardner/openmls",
+]

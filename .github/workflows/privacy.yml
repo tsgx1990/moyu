@@ -1,0 +1,49 @@
+name: privacy
+
+# Secret and personal-data gate (scripts/privacy-check.sh + .gitleaks.toml).
+# Runs on every change, docs included -- documentation is where a local path
+# or a private link is most likely to slip in. The same script is the local
+# pre-commit hook (`git config core.hooksPath .githooks`), which is the
+# preventive control; this job is the backstop for pull requests.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: privacy-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  privacy-check:
+    name: secrets / personal data
+    runs-on: ubuntu-22.04
+    env:
+      GITLEAKS_VERSION: "8.30.1"
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Pinned release, verified before it runs.
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl --proto '=https' --tlsv1.2 -fsSL -o "$RUNNER_TEMP/$archive" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/$archive" | sha256sum --check --quiet
+          mkdir -p "$RUNNER_TEMP/gitleaks"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/gitleaks" gitleaks
+          echo "$RUNNER_TEMP/gitleaks" >> "$GITHUB_PATH"
+
+      - name: Tracked files
+        run: scripts/privacy-check.sh
+
+      - name: Every commit
+        run: scripts/privacy-check.sh --history

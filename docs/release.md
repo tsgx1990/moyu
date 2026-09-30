@@ -1,0 +1,82 @@
+# 发版手册
+
+两条流水线,全部跑在 GitHub 托管的 runner 上。本文是打 tag 前后要做的事。
+
+## 一次发版长什么样
+
+| 产物 | 触发 | 工作流 | 落点 |
+|---|---|---|---|
+| CLI(5 个目标 + shell/powershell 安装脚本 + Homebrew formula) | 在 `main` 上打 tag **`cli/vX.Y.Z`** | `.github/workflows/cli-release.yml`(cargo-dist 生成) | 发行仓 `tsgx1990/homebrew-moyu` 的 Release(直接发布) |
+| 桌面(macOS `.dmg` ×2 / Linux `.deb`+`.AppImage` / Windows NSIS) | 打 tag **`app-vX.Y.Z`** | `.github/workflows/release-desktop.yml` | 同一发行仓的 **draft** Release,人工检查后 publish |
+
+两条硬约束:tag 里的版本号必须分别等于 workspace `Cargo.toml` 的 `version`
+和 `apps/desktop/src-tauri/tauri.conf.json` 的 `version`,不等就在构建矩阵
+之前失败退出。桌面 Release publish 之后 GitHub 会把它标成 "Latest",而 README
+的安装命令走 `releases/latest/download/moyu-cli-installer.sh`,所以**发完桌面
+版必须把 CLI 的 Release 重新钉回 Latest**:
+
+```sh
+gh release edit cli/vX.Y.Z -R tsgx1990/homebrew-moyu --latest
+```
+
+源码在本仓库,发行物在 `tsgx1990/homebrew-moyu`(安装脚本和 Homebrew formula
+里的下载地址都指向那里)。跨仓发布用两个仓库 secret:`GH_RELEASES_TOKEN`
+(对发行仓有写权限的 fine-grained PAT)和 `HOMEBREW_TAP_TOKEN`(推 formula)。
+
+## 哪个 job 跑在哪台机器上
+
+| 构建腿 | runner |
+|---|---|
+| CLI `aarch64-apple-darwin` / 桌面 `macos-aarch64` | `macos-14` |
+| CLI `x86_64-apple-darwin` / 桌面 `macos-x64` | `macos-15-intel` |
+| CLI `x86_64-unknown-linux-gnu` / 桌面 `linux-x64` | `ubuntu-22.04` |
+| CLI `aarch64-unknown-linux-gnu` | `ubuntu-24.04-arm` |
+| CLI `x86_64-pc-windows-msvc` / 桌面 `windows-x64` | `windows-2022` |
+
+GitHub 已预告:托管的 Intel macOS 镜像会随 macOS 15 镜像一起退役(预计 2027
+年秋)。届时 x86_64 的 macOS 产物要改成在 arm64 runner 上交叉构建
+(`scripts/build-sidecar.mjs` 已支持 `MOYU_SIDECAR_TARGET`),或者停止提供。
+
+## 本仓库不设自托管 runner
+
+公开仓库的工作流可以被任何人的 pull request 触发。自托管 runner 以机器主人的
+身份执行工作流里的代码,挂在公开仓库上就等于允许陌生人在那台机器上跑代码。
+所以**不要给本仓库注册自托管 runner**,发版的每一条腿都用托管 runner。
+
+发版工作流的其它加固:
+
+- 所有 action 都钉到 commit SHA(`cli-release.yml` 的 SHA 写在
+  `dist-workspace.toml` 的 `[dist.github-action-commits]` 里,改完要重跑
+  `dist generate`)。
+- 发版构建不恢复构建缓存,每次从锁定的依赖冷编译。
+- PR 只跑 `plan`(`pr-run-mode = "plan"`),碰不到任何持有发布令牌的 job;来自
+  fork 的 PR 本来也拿不到 secret。
+
+## 打 tag 前的冒烟
+
+```sh
+gh workflow run release-desktop.yml --ref main -f legs=macos   # 或 legs=all
+gh run list --workflow=release-desktop.yml --limit 1
+gh run view <run-id> --json conclusion,jobs   # 结论只信这个,别接 tail
+```
+
+`workflow_dispatch` 只构建、不上传任何东西,用来确认 tauri 打包还好使。
+cargo-dist 侧没有等价入口,本机跑
+`dist build --artifacts=local --target <triple>` 与 runner 上会做的事一致。
+
+## 步骤清单
+
+1. 版本号四处一致:workspace `Cargo.toml`、`apps/desktop/package.json`、
+   `apps/desktop/src-tauri/Cargo.toml`、`tauri.conf.json`;`CHANGELOG.md` 有该
+   版本一节;四道门(fmt / build / test / clippy)与本地 e2e 绿。
+2. 可选:冒烟(上一节)。
+3. CLI:`git tag cli/vX.Y.Z && git push origin cli/vX.Y.Z`,
+   `gh run list --workflow=cli-release.yml` 盯到 `host` 与
+   `publish-homebrew-formula` 绿。
+4. 桌面:`git tag app-vX.Y.Z && git push origin app-vX.Y.Z`;draft Release 出来
+   后核对资产,写安装说明(免签名,见 `docs/desktop-install.md`),publish。
+5. **重新钉 CLI 为 Latest**(本文开头的命令)。
+6. 验证安装:`curl | sh` 安装脚本、`brew install tsgx1990/moyu/moyu-cli`、下载的
+   tarball 校验和。
+7. 发版附带的 `source.tar.gz` 是本仓库在该 tag 的文件树(`git archive`)。发版前
+   确认没有把不该公开的文件提交进来(`scripts/privacy-check.sh`)。

@@ -1,0 +1,66 @@
+[package]
+name = "moyu-desktop"
+version = "0.2.0"
+description = "moyu desktop — a GUI shell over the moyu CLI (E2EE chat, MLS over Nostr)"
+edition = "2021"
+license = "MIT"
+publish = false
+
+# Deliberately its OWN one-crate workspace: the root moyu cargo workspace
+# `exclude`s this path (see root Cargo.toml), so `cargo-dist`'s
+# `members = ["cargo:."]` and the CLI CI's `--all-targets` never touch the
+# Tauri dependency tree, and this crate keeps an independent Cargo.lock.
+[workspace]
+
+# Belt-and-suspenders with the workspace exclusion above: never picked up by
+# cargo-dist even if the exclusion is ever removed.
+[package.metadata.dist]
+dist = false
+
+[lib]
+# The `_lib` suffix keeps the lib name distinct from the bin on Windows
+# (cargo #8519, from the upstream template).
+name = "moyu_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# `protocol-asset`: serves the local attachment cache dir to the webview via
+# the `asset:` scheme (see tauri.conf.json's `app.security.assetProtocol`,
+# scoped to ONLY `$APPDATA/attachments/**`) so a downloaded image can render
+# inline without ever handing the webview a `file://` path.
+tauri = { version = "2", features = ["protocol-asset"] }
+# Rust-side sidecar spawning ONLY — the webview gets zero shell permissions
+# (see capabilities/default.json); chat content is untrusted input and must
+# never be able to reach a process-spawning API.
+tauri-plugin-shell = "2"
+# Rust-side native file picker ONLY (attachments) — invoked from our own
+# `pick_attachment` command, never through the plugin's own JS bindings, so
+# no `dialog:*` capability is granted to the webview (capabilities/default.json
+# stays `["core:default"]`). The webview never supplies a filesystem path;
+# it only ever receives an opaque token minted here (see attachments.rs).
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["sync", "macros", "time", "rt"] }
+# Shell-process diagnostics (RUST_LOG-driven, stderr). The sidecar has its own.
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# Wipe the unlock passphrase copy this process holds while forwarding it to
+# the sidecar's stdin.
+zeroize = "1"
+# Rust-side "open this URL in the system browser" for the on_navigation guard
+# (external message links), and (via the `reveal` feature) "show this
+# downloaded attachment in the OS file manager" for reveal_attachment —
+# deliberately NOT the webview opener plugin, so no opener capability is
+# exposed to rendered content.
+opener = { version = "0.7", features = ["reveal"] }
+# OS notifications. Called ONLY from Rust (session.rs's `maybe_notify`,
+# on the inbound-message event path) via the `NotificationExt` extension
+# trait — never through the plugin's JS bindings, so no `notification:*`
+# capability is granted to the webview (capabilities/default.json stays
+# `["core:default"]`). The toggle in the identity modal talks to it through
+# our own `set_notify` command, not the plugin's.
+tauri-plugin-notification = "2"

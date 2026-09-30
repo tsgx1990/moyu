@@ -1,0 +1,99 @@
+# Push a CI result into an E2EE moyu channel as a 🤖 bot operation (kind-1202).
+#
+# Drop this step at the END of an existing job (or make a dedicated `notify` job
+# that `needs:` your build). It fires on success AND failure, so #ci always
+# reflects reality.
+#
+# Secrets to set in the repo/org (Settings → Secrets and variables → Actions):
+#   MOYU_BOT_NSEC        the bot identity's nsec (see examples/integrations/README.md setup)
+#   MOYU_BOT_PASSPHRASE  the passphrase that identity is encrypted with
+#   MOYU_RELAY           e.g. wss://relay.your-org.example
+#
+# Three things in this file are deliberate; keep them when you adapt it:
+#
+# 1. moyu is installed from a PINNED release archive whose SHA-256 is written
+#    in this file. Do not replace that with `cargo install moyu` or
+#    `cargo install moyu-cli`: moyu is not published on crates.io, and a crate
+#    of either name there is somebody else's code, which would run with your
+#    bot's key in its environment. To move to a newer release, change
+#    MOYU_VERSION and MOYU_SHA256 together (the hash is in the release's
+#    `moyu-cli-x86_64-unknown-linux-gnu.tar.xz.sha256` asset).
+# 2. Nothing from `${{ github.* }}` or `${{ secrets.* }}` is pasted into the
+#    script text. A branch name may contain quotes, `$` and `;`, so pasting
+#    `${{ github.ref_name }}` into a `run:` block lets whoever can push a
+#    branch run shell commands in a step that holds your secrets. Values come
+#    in through `env:` and are only ever used as quoted "$VARIABLES".
+# 3. Pull requests from forks get no secrets. The step notices and skips
+#    instead of failing the job.
+name: ci
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run the build + tests
+        id: build
+        run: cargo test --workspace   # ← your real build; may fail, that's fine
+
+      # ---- notify moyu (always) ----------------------------------------------
+      - name: Notify moyu (E2EE)
+        if: always()                  # run even when the build step failed
+        env:
+          MOYU_VERSION: "0.2.0"
+          MOYU_SHA256: d3a08dccf2c7ab9cfd247e685e7e0d0f505b564cd8c615e118136b4acfd09c33
+          MOYU_PASSPHRASE: ${{ secrets.MOYU_BOT_PASSPHRASE }}
+          MOYU_BOT_NSEC: ${{ secrets.MOYU_BOT_NSEC }}
+          MOYU_RELAY: ${{ secrets.MOYU_RELAY }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          if [ -z "${MOYU_BOT_NSEC:-}" ] || [ -z "${MOYU_RELAY:-}" ]; then
+            echo "moyu bot secrets are not available to this run (a pull request from a fork?); skipping."
+            exit 0
+          fi
+
+          # Install the pinned release and verify it before running it.
+          archive="moyu-cli-x86_64-unknown-linux-gnu.tar.xz"
+          curl --proto '=https' --tlsv1.2 -fsSL -o "$RUNNER_TEMP/$archive" \
+            "https://github.com/tsgx1990/homebrew-moyu/releases/download/cli/v${MOYU_VERSION}/${archive}"
+          echo "${MOYU_SHA256}  $RUNNER_TEMP/$archive" | sha256sum --check --quiet
+          mkdir -p "$RUNNER_TEMP/moyu-bin"
+          tar -xJf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/moyu-bin" --strip-components=1
+          MOYU="$RUNNER_TEMP/moyu-bin/moyu"
+
+          # Import the bot identity into a scratch data dir. On an ephemeral
+          # runner this re-imports each run (and republishes a KeyPackage);
+          # cache "$MOYU_DIR" across runs to skip that.
+          # 0.2.0 only takes the key as an argument. From the next release on,
+          # pipe it instead so it never appears in a process list:
+          #   printf '%s' "$MOYU_BOT_NSEC" | "$MOYU" --data-dir "$MOYU_DIR" init --import-nsec
+          MOYU_DIR="$RUNNER_TEMP/moyu-bot"
+          "$MOYU" --data-dir "$MOYU_DIR" init --import-nsec "$MOYU_BOT_NSEC" >/dev/null
+          "$MOYU" --data-dir "$MOYU_DIR" --relay "$MOYU_RELAY" recv >/dev/null
+
+          # Map the job status to moyu's --ok/--fail and post the operation.
+          # The GITHUB_* values are default environment variables; jq builds
+          # the JSON so a quote in a branch name cannot break out of it.
+          if [ "$JOB_STATUS" = "success" ]; then OKFLAG=--ok; else OKFLAG=--fail; fi
+          details="$(jq -nc \
+            --arg repo "$GITHUB_REPOSITORY" \
+            --arg ref "$GITHUB_REF_NAME" \
+            --arg sha "$GITHUB_SHA" \
+            --arg run_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            '{repo: $repo, ref: $ref, sha: $sha, run_url: $run_url}')"
+          "$MOYU" --data-dir "$MOYU_DIR" --relay "$MOYU_RELAY" \
+            op eng ci \
+              --type ci \
+              --status "$JOB_STATUS" \
+              --name "$GITHUB_WORKFLOW" \
+              --run-id "$GITHUB_RUN_ID" \
+              "$OKFLAG" \
+              --details "$details" \
+              "$GITHUB_REPOSITORY@$GITHUB_REF_NAME — $JOB_STATUS"

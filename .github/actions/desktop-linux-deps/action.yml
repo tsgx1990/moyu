@@ -1,0 +1,30 @@
+name: Install desktop Linux dependencies
+description: >
+  Install the Linux system packages the Tauri desktop shell
+  (apps/desktop/src-tauri) needs to compile — webkit2gtk and friends. Shared
+  between ci.yml's desktop job (clippy/typecheck only) and
+  release-desktop.yml's ubuntu leg (full bundling), which need the same base
+  packages plus, for release, a few extra ones for bundling. Keeping this in
+  one composite action is what stops the two lists drifting out of sync
+  again (they had, before this action existed).
+inputs:
+  extra-packages:
+    description: >
+      Extra apt packages to install on top of the shared base list,
+      space-separated (e.g. "patchelf xdg-utils"). Empty by default.
+    required: false
+    default: ""
+runs:
+  using: "composite"
+  steps:
+    - name: Install Linux system dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libwebkit2gtk-4.1-dev \
+          libxdo-dev \
+          libssl-dev \
+          libayatana-appindicator3-dev \
+          librsvg2-dev \
+          ${{ inputs.extra-packages }}

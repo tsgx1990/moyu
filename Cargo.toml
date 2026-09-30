@@ -1,0 +1,142 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/moyu-core",
+    "crates/moyu-cli",
+    "crates/moyu-relay-policy",
+]
+# The Tauri desktop shell is deliberately NOT a member: it is its own
+# one-crate workspace (apps/desktop/src-tauri/Cargo.toml has a [workspace]
+# table) so cargo-dist's `members = ["cargo:."]` and this workspace's CI
+# (`cargo clippy --all-targets`, `cargo test --workspace`) never compile the
+# Tauri dependency tree, and its Cargo.lock stays independent of the one
+# cargo-dist ships. It consumes the CLI as a compiled sidecar binary
+# (scripts/build-sidecar.mjs), never as a crate.
+exclude = ["apps/desktop/src-tauri"]
+
+[workspace.package]
+edition = "2024"
+version = "0.2.0"
+license = "MIT"
+publish = false
+# `repository` is the DISTRIBUTION repo, not this source repo
+# (https://github.com/tsgx1990/moyu): cargo-dist derives every installer and
+# artifact download URL from it, and releases are published to the Homebrew
+# tap repo (see `github-releases-repo` in dist-workspace.toml). Changing it
+# would point the installers at releases that do not exist.
+repository = "https://github.com/tsgx1990/homebrew-moyu"
+homepage = "https://github.com/tsgx1990/moyu"
+description = "End-to-end-encrypted CLI chat for programmers — MLS over Nostr (Marmot)."
+
+[workspace.dependencies]
+# ---------------------------------------------------------------------------
+# MDK (Marmot Development Kit) — pinned to a moyu-maintained FORK.
+#
+# Upstream MDK (marmot-protocol/mdk) is MIT but ships no crates.io release
+# (`publish = false`), so a git dependency is the only option. moyu points at a
+# small fork (tsgx1990/mdk) rather than upstream because the fork adds one thing
+# upstream lacks: `MarmotAppConfig::relay_connection` (a SOCKS5-proxy option for
+# the relay plane), required so moyu can reach relays through a SOCKS5 proxy
+# (Tor, `ssh -D`, a corporate proxy) on a network where a direct WebSocket
+# does not get through. Upstream PR marmot-protocol/mdk#783 carrying the same
+# change was closed without merging (proxy/Tor support is planned upstream
+# but not scheduled), so the fork stays until upstream has an equivalent.
+# Fork branch `moyu/relay-proxy-0.9.20` = upstream tag v0.9.20 (commit
+# 2f44f6b) + a 3-commit SOCKS5 relay patch + a 4th commit (9368988) that
+# routes Blossom media transfers through the same proxy
+# (`MarmotApp::media_proxy`, `BlossomHttpTransport::with_proxy`,
+# `upload_blossom_blob_via`) so attachments do not bypass `--socks5`.
+#
+# Bumping: rebase the fork branch onto the new upstream tag, `cargo check -p
+# marmot-app` + `cargo fmt --check` there, push a NEW branch, re-pin all nine
+# entries below, mirror upstream's `nostr` pin (and rust-toolchain.toml), then
+# run the e2e suite — MDK's DB schema migrations are forward-only, so never
+# bump casually. MDK's root Cargo.toml now carries a `[patch.crates-io]` for
+# `hax-lib-macros`, active only under `cfg(hax)`; it does not travel through a
+# git dependency and is not needed for a normal build. Package names below are
+# the real `[package] name` values (the crate in `crates/traits` is literally
+# `cgka-traits`, imported as `cgka_traits::...`).
+cgka-traits = { git = "https://github.com/tsgx1990/mdk", rev = "9368988c28d3dbb4530d4da6595afab43b5375a9" }
+cgka-engine = { git = "https://github.com/tsgx1990/mdk", rev = "9368988c28d3dbb4530d4da6595afab43b5375a9" }
+cgka-session = { git = "https://github.com/tsgx1990/mdk", rev = "9368988c28d3dbb4530d4da6595afab43b5375a9" }
+storage-sqlite = { git = "https://github.com/tsgx1990/mdk", rev = "9368988c28d3dbb4530d4da6595afab43b5375a9" }
+transport-nostr-adapter = { git = "https://github.com/tsgx1990/mdk", rev = "9368988c28d3dbb4530d4da6595afab43b5375a9", features = [
+    "sdk",
+] }
+transport-nostr-peeler = { git = "https://github.com/tsgx1990/mdk", rev = "9368988c28d3dbb4530d4da6595afab43b5375a9" }
+marmot-account = { git = "https://github.com/tsgx1990/mdk", rev = "9368988c28d3dbb4530d4da6595afab43b5375a9" }
+marmot-app = { git = "https://github.com/tsgx1990/mdk", rev = "9368988c28d3dbb4530d4da6595afab43b5375a9" }
+fs-private = { git = "https://github.com/tsgx1990/mdk", rev = "9368988c28d3dbb4530d4da6595afab43b5375a9" }
+
+# ---------------------------------------------------------------------------
+# Nostr — version MUST track MDK's root Cargo.toml `[workspace.dependencies]`
+# exactly. If moyu's own Cargo.lock resolves a different 0.44.x patch than the
+# one MDK's crates were built/tested against, `nostr::Keys`/`PublicKey`/etc.
+# values still type-match (same major/minor), but behavior (e.g. NIP-05/NIP-49
+# edge cases) could silently drift. Feature set is kept identical to MDK's
+# ("std","nip49","nip59"): `nostr::Keys::generate()` is gated only by `std`
+# (it uses `secp256k1`'s own `OsRng` internally, not any nostr RNG feature),
+# so nothing extra is needed here.
+nostr = { version = "0.44.8", default-features = false, features = [
+    "std",
+    "nip49",
+    "nip59",
+] }
+
+# ---------------------------------------------------------------------------
+# moyu's own stack.
+tokio = { version = "1", features = [
+    "sync",
+    "macros",
+    "rt",
+    "rt-multi-thread",
+    "time",
+    "io-util",
+] }
+clap = { version = "4.6", features = ["derive"] }
+# `moyu tui`. Kept at the same version MDK pins, so there is no ratatui
+# version skew against MDK's own (MIT) wn-tui.
+ratatui = { version = "0.29", features = ["unstable-rendered-line-info"] }
+crossterm = "0.28"
+rustyline = "14"
+# Hidden (no-echo) passphrase input for `moyu init`/`chat`/`keypackage`.
+rpassword = "7"
+# Not a direct dependency of any moyu crate today (moyu-core's own local
+# bookkeeping in `store.rs` is plain JSON via `serde_json`, not SQLite — see
+# that module's doc comment) — pinned here, matching `storage-sqlite`'s own
+# feature choice (MDK's root Cargo.toml), only so a future direct use does
+# not have to reconcile a different rusqlite/SQLCipher build against the one
+# already in the dependency graph via `storage-sqlite`.
+rusqlite = { version = "0.40.1", default-features = false, features = ["bundled-sqlcipher-vendored-openssl", "trace"] }
+argon2 = "0.5"
+chacha20poly1305 = "0.10"
+directories = "5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+hex = "0.4"
+rand = "0.8"
+zeroize = "1"
+reqwest = { version = "0.12", default-features = false, features = [
+    "rustls-tls",
+    # SOCKS5 proxy support so moyu's NIP-05 well-known HTTPS lookup can go
+    # through the same `--socks5` proxy as relay traffic (no direct-connection
+    # metadata leak when a proxy is configured). See `identity::resolve_nip05`.
+    "socks",
+] }
+
+# Debug builds still pay a real Argon2id per identity (init/unlock in the e2e
+# suite does it 8+ times across fresh processes); an optimized KDF crate keeps
+# `cargo test` and CI's debug-built e2e job fast without touching semantics.
+[profile.dev.package.argon2]
+opt-level = 3
+[profile.dev.package.blake2]
+opt-level = 3
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"

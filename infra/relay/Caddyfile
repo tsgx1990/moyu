@@ -1,0 +1,5 @@
+# Replace relay.example.com with your hostname. Caddy obtains the certificate
+# and proxies wss:// to strfry, which binds loopback only (see strfry.conf).
+relay.example.com {
+    reverse_proxy 127.0.0.1:7777
+}

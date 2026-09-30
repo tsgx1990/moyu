@@ -1,0 +1,38 @@
+[package]
+name = "moyu-core"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+# MDK — direct usage (see docs/mdk-api-map.md for exact call sites).
+marmot-app = { workspace = true }
+marmot-account = { workspace = true }
+cgka-traits = { workspace = true }
+cgka-engine = { workspace = true }
+fs-private = { workspace = true }
+
+# `storage-sqlite` / `transport-nostr-adapter` / `transport-nostr-peeler` /
+# `cgka-session` are NOT listed here even though moyu depends on them
+# transitively through `marmot-app`/`marmot-account` (which wire them up
+# internally, see docs/mdk-api-map.md "Transport & storage wiring is automatic"
+# note). They stay pinned in the workspace root `[workspace.dependencies]` so
+# a later moyu-core module can start calling them directly (e.g. a custom
+# TransportPeeler for M1) without a version to reconcile, but M0 code does not
+# import them.
+
+nostr = { workspace = true }
+tokio = { workspace = true }
+argon2 = { workspace = true }
+chacha20poly1305 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+bech32 = "0.11"
+thiserror = { workspace = true }
+tracing = { workspace = true }
+hex = { workspace = true }
+rand = { workspace = true }
+zeroize = { workspace = true }
+reqwest = { workspace = true }

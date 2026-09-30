@@ -1,0 +1,21 @@
+# Windows: reserve an 8 MiB main-thread stack (matches the Linux/macOS
+# default) for every binary in the workspace.
+#
+# Why: `#[tokio::main]` block_on()s the whole `run(cli)` future — a giant
+# inlined async state machine (37-command session dispatch + MDK's deep
+# async engine stacks) — ON the main thread's stack. MSVC's default /STACK
+# reservation is 1 MiB, so moyu.exe died with STATUS_STACK_OVERFLOW
+# (0xC00000FD) before emitting a single frame; the same construction fits
+# comfortably in the 8 MiB Unix default. Caught by the windows-2022 CI hard
+# gate's session integration tests — the first thing to ever *execute*
+# moyu.exe on Windows (unit tests run inside the test harness, whose test
+# threads get 2 MiB).
+#
+# The reservation is virtual address space, committed lazily by Windows —
+# no real memory cost. NOTE: a RUSTFLAGS env var would silently override
+# these target-scoped flags (cargo precedence); CI deliberately sets none.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "link-arg=/STACK:8388608"]
+
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "link-arg=/STACK:8388608"]

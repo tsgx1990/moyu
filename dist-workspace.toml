@@ -1,0 +1,63 @@
+[workspace]
+members = ["cargo:."]
+
+# Config for 'dist'
+[dist]
+# The preferred dist version to use in CI (Cargo.toml SemVer syntax)
+cargo-dist-version = "0.32.0"
+# CI backends to support
+ci = "github"
+# The installers to generate for each app. "powershell" is the Windows
+# analogue of the shell installer (`irm .../moyu-cli-installer.ps1 | iex`);
+# msi deliberately skipped for v1 (needs WiX wiring, and an unsigned
+# installer is a louder SmartScreen trigger than a zip).
+installers = ["shell", "powershell", "homebrew"]
+# Only tags namespaced `cli/vX.Y.Z` trigger this pipeline. Load-bearing for
+# the desktop app: without a namespace the generated workflow matches
+# '**[0-9]+.[0-9]+.[0-9]+*', which would ALSO fire on a desktop `app-vX.Y.Z`
+# tag and double-release.
+tag-namespace = "cli"
+# Target platforms to build apps for (Rust target-triple syntax): macOS and
+# Linux on both architectures, plus Windows x64 (the vendored SQLCipher +
+# OpenSSL stack is proven green under MSVC by the CI hard gate).
+# aarch64-windows deferred: x64 emulation covers a CLI, and the C stack is
+# unverified on arm64-windows runners.
+targets = [
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+]
+# Homebrew tap (public repo, must be `homebrew-` prefixed).
+tap = "tsgx1990/homebrew-moyu"
+publish-jobs = ["homebrew"]
+# Cross-repo: build in the source repo, publish the GitHub Release to the tap
+# repo (needs the GH_RELEASES_TOKEN secret). The installer URLs in the README
+# and the Homebrew formula already point there, so releases stay in one place.
+github-releases-repo = "tsgx1990/homebrew-moyu"
+# PRs only run `plan`: a pull request never compiles the release matrix, and
+# never reaches a job that holds a release secret.
+pr-run-mode = "plan"
+
+# Per-target runners: pin linux-x64 to an older image for glibc compatibility,
+# build linux-arm64 natively on a hosted ARM64 runner (avoids cross-compiling
+# the vendored OpenSSL + SQLCipher C stack), and pin Windows to the only image
+# that C stack has been validated on. The two Apple targets use cargo-dist's
+# default GitHub-hosted runners (macos-14 for arm64, macos-15-intel for
+# x86_64). Every release job runs on a GitHub-hosted runner; this repository
+# has no self-hosted runners and must not get one (a public repository's
+# workflows can be triggered by anyone's pull request).
+[dist.github-custom-runners]
+x86_64-unknown-linux-gnu = "ubuntu-22.04"
+aarch64-unknown-linux-gnu = "ubuntu-24.04-arm"
+x86_64-pc-windows-msvc = "windows-2022"
+
+# Pin the actions in the generated cli-release.yml to commit SHAs instead of
+# moving major tags: its `host` and `publish-homebrew-formula` jobs hold the
+# release tokens. When bumping one, change it here and re-run `dist generate`
+# (the workflow's own `plan` step fails if the two disagree).
+[dist.github-action-commits]
+"actions/checkout" = "d23441a48e516b6c34aea4fa41551a30e30af803" # v6.1.0
+"actions/upload-artifact" = "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" # v7.0.1
+"actions/download-artifact" = "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c" # v8.0.1

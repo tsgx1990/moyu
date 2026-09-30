@@ -1,0 +1,27 @@
+# Rust build output
+/target
+/target-baseline
+**/*.rs.bk
+
+# moyu runtime data (identities, MLS state, SQLCipher dbs) — NEVER commit
+/moyu-data
+*.moyu.enc.json
+*.sqlite
+*.sqlite-*
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Local-only working files: maintainer ledgers, AI-assistant state, design
+# scratch. These must never be committed — the repository is public, and they
+# routinely contain local paths and other machine-specific detail.
+/.claude/
+/.remember/
+/CLAUDE.local.md
+/PROGRESS.md
+/HANDOFF.md
+/docs/superpowers/
+/docs/design/

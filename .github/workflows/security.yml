@@ -1,0 +1,59 @@
+name: security
+
+# Supply-chain gate: RustSec advisories, SPDX license allowlist, dependency
+# sources, and bans — all from deny.toml. Its verdict depends only on the
+# manifests, lockfiles and deny.toml, so PR / main-push runs are limited to
+# changes touching those (any Cargo.toml / Cargo.lock in the repo covers the
+# workspace crates and the separate src-tauri workspace); the weekly schedule
+# still catches a newly published advisory against an unchanged lockfile.
+on:
+  pull_request:
+    paths:
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - "deny.toml"
+      - ".github/workflows/security.yml"
+  push:
+    branches: [main]
+    paths:
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - "deny.toml"
+      - ".github/workflows/security.yml"
+  schedule:
+    - cron: "17 3 * * 1"
+
+# Include the event name so the weekly schedule and a push to main (same
+# ref) do not cancel each other.
+concurrency:
+  group: security-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  cargo-deny:
+    name: cargo-deny (advisories / licenses / sources / bans)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # EmbarkStudios/cargo-deny-action v2.1.1 (bundles cargo-deny 0.20.x),
+      # SHA-pinned like every other action in this repository.
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          command: check
+          arguments: --all-features
+
+      # The Tauri shell is its own cargo workspace (excluded from the root one
+      # on purpose — see root Cargo.toml), so it needs a second pass with the
+      # same policy file.
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          manifest-path: apps/desktop/src-tauri/Cargo.toml
+          command: check
+          # `--config` is a GLOBAL cargo-deny option (0.20.x rejects it after
+          # `check`), so it rides in `arguments`; the path resolves from the
+          # repo root, the action's working directory. Verified locally with
+          # exactly this shape.
+          arguments: --all-features --config deny.toml

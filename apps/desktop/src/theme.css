@@ -1,0 +1,619 @@
+/* moyu desktop · V2「暖纸工作台」design tokens + components.
+   Light-first warm paper; dark follows the OS with the same warmth. */
+:root {
+  --bg: #f6f2ea;
+  --panel: #efe9dd;
+  --card: #fffdf8;
+  --ink: #33302a;
+  --dim: #726b5c;
+  --line: #ded6c6;
+  --acc: #20705f;
+  --acc-ink: #fdfcf7;
+  --accsoft: #d9e8e2;
+  --amber: #a8630e;
+  --ambersoft: #f8f1df;
+  --amberline: #e8d9ae;
+  --red: #b3402e;
+  --redsoft: #f7e8e4;
+  --code-bg: #2d2b26;
+  --code-ink: #e8e2d2;
+  --shadow: 0 2px 10px -4px rgba(60, 50, 30, 0.18);
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1d1b16;
+    --panel: #24211a;
+    --card: #282419;
+    --ink: #e8e2d2;
+    --dim: #9a917d;
+    --line: #3a352a;
+    --acc: #57a891;
+    --acc-ink: #14201c;
+    --accsoft: #23342e;
+    --amber: #d4a052;
+    --ambersoft: #2e2919;
+    --amberline: #4d422a;
+    --red: #d4715f;
+    --redsoft: #33231f;
+    --code-bg: #16140f;
+    --code-ink: #ddd6c4;
+    --shadow: 0 2px 12px -4px rgba(0, 0, 0, 0.5);
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 13.5px/1.55 "Avenir Next", "Hiragino Sans GB", "PingFang SC",
+    ui-sans-serif, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+code, pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+button { font: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible, a:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 1px;
+}
+
+.root { display: flex; flex-direction: column; height: 100vh; }
+
+/* ------------------------------------------------- status bar */
+.statusbar {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.32rem 0.85rem; font-size: 0.76rem; color: var(--dim);
+  background: var(--panel); border-bottom: 1px solid var(--line);
+}
+.statusbar .dot {
+  width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--amber);
+}
+.statusbar[data-state="unlocked"] .dot { background: var(--acc); }
+.statusbar[data-state="down"] .dot,
+.statusbar[data-state="restarting"] .dot { background: var(--red); }
+
+/* ------------------------------------------------- unlock */
+.ul {
+  flex: 1; display: grid; place-items: center;
+  background: linear-gradient(160deg, var(--bg) 0%, var(--panel) 100%);
+}
+.ulcard {
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: 0 24px 60px -30px rgba(70, 55, 25, 0.35);
+  padding: 2rem 2.2rem; width: min(24rem, 86%); text-align: center;
+}
+.ulcard .mark {
+  width: 3rem; height: 3rem; margin: 0 auto 0.8rem; border-radius: 12px;
+  background: var(--acc); color: var(--acc-ink);
+  display: grid; place-items: center; font-size: 1.4rem;
+}
+.ulcard h1 { margin: 0; font-size: 1.3rem; letter-spacing: 0.02em; }
+.ulcard .tag { color: var(--dim); font-size: 0.8rem; margin: 0.3rem 0 1.2rem; }
+.ulcard form { display: flex; flex-direction: column; gap: 0.7rem; }
+.ulcard input {
+  border: 1px solid var(--line); border-radius: 8px; padding: 0.55rem 0.8rem;
+  background: var(--bg); color: var(--ink); font: inherit; letter-spacing: 0.18em;
+}
+.ulcard input::placeholder { letter-spacing: normal; color: var(--dim); }
+.ulcard button {
+  background: var(--acc); color: var(--acc-ink); border: none; border-radius: 8px;
+  padding: 0.55rem;
+}
+.ulcard button:disabled { opacity: 0.55; cursor: default; }
+.ulcard .error { color: var(--red); font-size: 0.82rem; margin: 0.8rem 0 0; }
+.ulcard .note { color: var(--dim); font-size: 0.85rem; }
+.ulcard .hint { color: var(--dim); font-size: 0.72rem; margin: 1rem 0 0; }
+
+/* ------------------------------------------------- shell layout */
+.app {
+  flex: 1; min-height: 0;
+  display: grid; grid-template-columns: 236px 1fr;
+}
+.side {
+  background: var(--panel); border-right: 1px solid var(--line);
+  padding: 0.6rem 0; display: flex; flex-direction: column;
+  overflow-y: auto;
+}
+.side .sec {
+  padding: 0.7rem 1rem 0.25rem; color: var(--dim);
+  font-size: 0.68rem; letter-spacing: 0.14em; font-weight: 600;
+}
+.side a {
+  display: flex; align-items: center; gap: 0.55rem; margin: 0 0.5rem;
+  padding: 0.3rem 0.55rem; border-radius: 7px; color: var(--ink);
+  text-decoration: none; white-space: nowrap;
+}
+.side a:hover { background: color-mix(in srgb, var(--acc) 8%, transparent); }
+.side a.on { background: var(--acc); color: var(--acc-ink); }
+.side a .lbl { overflow: hidden; text-overflow: ellipsis; }
+.side a .av {
+  width: 1.35rem; height: 1.35rem; border-radius: 50%; flex: none;
+  background: var(--accsoft); color: var(--acc);
+  display: grid; place-items: center; font-size: 0.66rem; font-weight: 700;
+}
+.side a.on .av { background: rgba(255, 255, 255, 0.25); color: var(--acc-ink); }
+.side a .n {
+  margin-left: auto; background: var(--red); color: #fff; border-radius: 999px;
+  font-size: 0.66rem; padding: 0 0.38rem; font-variant-numeric: tabular-nums;
+}
+.side .me {
+  margin-top: auto; border-top: 1px solid var(--line);
+  padding: 0.6rem 1rem 0.2rem; color: var(--dim); font-size: 0.74rem;
+  display: flex; align-items: center; gap: 0.4rem;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+/* The identity label is the only flexible item — it takes the leftover width
+   and ellipsis-truncates (full npub in its `title`), so the fixed 236px column
+   never squeezes the action buttons. `min-width: 0` is required for a flex item
+   to shrink below its content. */
+.side .me > span {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.side .lockbtn {
+  flex: none; white-space: nowrap;
+  background: transparent; border: 1px solid var(--line);
+  border-radius: 6px; color: var(--dim); font-size: 0.7rem; padding: 0.1rem 0.5rem;
+}
+.side .lockbtn:hover { color: var(--ink); border-color: var(--dim); }
+
+.main {
+  display: flex; flex-direction: column; min-width: 0; background: var(--card);
+}
+.blank { margin: auto; color: var(--dim); max-width: 40ch; text-align: center; }
+
+.chead {
+  display: flex; gap: 0.8rem; align-items: baseline;
+  padding: 0.65rem 1.1rem; border-bottom: 1px solid var(--line);
+}
+.chead b { font-size: 0.98rem; }
+.chead span { color: var(--dim); font-size: 0.76rem; }
+.chead .e2e {
+  margin-left: auto; color: var(--acc); background: var(--accsoft);
+  border-radius: 999px; padding: 0.05rem 0.6rem; font-size: 0.72rem;
+}
+
+/* ------------------------------------------------- messages */
+.msgs {
+  padding: 0.9rem 1.1rem; display: flex; flex-direction: column; gap: 0.8rem;
+  flex: 1; overflow-y: auto; user-select: text;
+}
+.older {
+  align-self: center; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 999px; color: var(--dim); font-size: 0.76rem; padding: 0.2rem 0.9rem;
+}
+.empty { color: var(--dim); text-align: center; margin: auto; }
+.day {
+  display: flex; align-items: center; gap: 0.8rem;
+  color: var(--dim); font-size: 0.72rem; margin-bottom: .5rem;
+}
+.day::before, .day::after { content: ""; height: 1px; background: var(--line); flex: 1; }
+
+/* In-conversation message search (Shell.tsx's Pane) — sticky panel at
+   the top of the scrollable message list; the results list is a plain-text
+   preview (never the rendered/sanitized message body), so highlighting a
+   match is just wrapping a text slice in <mark>, never HTML injection. */
+.searchbar {
+  position: sticky; top: 0; z-index: 3; margin: -0.9rem -1.1rem 0;
+  padding: 0.5rem 1.1rem; background: var(--panel); border-bottom: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 0.4rem;
+}
+.searchrow { display: flex; align-items: center; gap: 0.4rem; }
+.searchrow input {
+  flex: 1; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--card); color: var(--ink); font: inherit;
+  padding: 0.3rem 0.6rem; font-size: 0.8rem;
+}
+.searchcount {
+  color: var(--dim); font-size: 0.72rem; white-space: nowrap;
+  font-variant-numeric: tabular-nums; min-width: 3.2rem; text-align: right;
+}
+.searchrow button {
+  background: transparent; border: 1px solid var(--line); border-radius: 6px;
+  color: var(--ink); font-size: 0.76rem; padding: 0.18rem 0.45rem; line-height: 1.3;
+}
+.searchrow button:hover:not(:disabled) { border-color: var(--acc); color: var(--acc); }
+.searchrow button:disabled { opacity: 0.4; cursor: default; }
+.searchmore {
+  align-self: flex-start; background: transparent; border: 1px dashed var(--line);
+  border-radius: 7px; color: var(--dim); font-size: 0.74rem; padding: 0.22rem 0.6rem;
+}
+.searchresults {
+  display: flex; flex-direction: column; gap: 0.2rem; max-height: 11rem; overflow-y: auto;
+}
+.searchresults button {
+  display: flex; gap: 0.5rem; align-items: baseline; text-align: left;
+  background: var(--card); border: 1px solid var(--line); border-radius: 7px;
+  padding: 0.3rem 0.55rem; color: var(--ink); font-size: 0.78rem;
+}
+.searchresults button b { flex: none; color: var(--dim); font-size: 0.72rem; font-weight: 600; }
+.searchresults button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.searchresults button.on { border-color: var(--acc); background: var(--accsoft); }
+.searchresults mark, .searchrow mark { background: var(--ambersoft); color: var(--amber); border-radius: 3px; }
+
+/* jump-to-match flash on the real message row (Pane's `jumpTo`) */
+[data-searchhit="true"] { animation: searchflash 1.2s ease-out; border-radius: 8px; }
+@keyframes searchflash {
+  from { background: color-mix(in srgb, var(--acc) 20%, transparent); }
+  to { background: transparent; }
+}
+
+.m { display: grid; grid-template-columns: 2.2rem 1fr; gap: 0.7rem; }
+.m .av {
+  width: 2rem; height: 2rem; border-radius: 8px; background: var(--accsoft);
+  color: var(--acc); display: grid; place-items: center;
+  font-weight: 700; font-size: 0.8rem;
+}
+.m .av[data-self] { background: var(--acc); color: var(--acc-ink); }
+.m .mbody { min-width: 0; }
+.m .hd { display: flex; gap: 0.55rem; align-items: baseline; }
+.m .hd b { font-size: 0.88rem; }
+.m .hd span { color: var(--dim); font-size: 0.7rem; font-variant-numeric: tabular-nums; }
+.m .hd .rref { color: var(--acc); }
+
+.md p { margin: 0.1rem 0 0; overflow-wrap: anywhere; }
+.md p + p { margin-top: 0.4rem; }
+.md a { color: var(--acc); }
+.md ul, .md ol { margin: 0.3rem 0 0; padding-left: 1.3rem; }
+.md blockquote {
+  margin: 0.3rem 0 0; padding-left: 0.6rem;
+  border-left: 2px solid var(--acc); color: var(--dim);
+}
+.md code {
+  background: color-mix(in srgb, var(--code-bg) 12%, transparent);
+  border-radius: 4px; padding: 0 0.3rem; font-size: 0.84em;
+}
+.md pre {
+  margin: 0.35rem 0 0; padding: 0.6rem 0.75rem; border-radius: 8px;
+  background: var(--code-bg); color: var(--code-ink);
+  overflow-x: auto; font-size: 0.78rem; line-height: 1.5;
+}
+.md pre code { background: transparent; padding: 0; font-size: inherit; }
+.md table { border-collapse: collapse; margin-top: 0.4rem; }
+.md th, .md td { border: 1px solid var(--line); padding: 0.2rem 0.55rem; }
+/* minimal highlight.js palette tuned to the paper theme */
+.hljs-keyword, .hljs-literal, .hljs-selector-tag { color: #8fd4b8; }
+.hljs-title, .hljs-name, .hljs-attr { color: #e5b567; }
+.hljs-string, .hljs-regexp { color: #c8b97e; }
+.hljs-comment, .hljs-quote { color: #837d6b; font-style: italic; }
+.hljs-number, .hljs-built_in, .hljs-type { color: #c79ad0; }
+
+.reacts { display: flex; gap: 0.35rem; margin-top: 0.3rem; }
+
+.atts { margin: 0.3rem 0 0; }
+.att {
+  display: inline-flex; gap: 0.5rem; align-items: center;
+  border: 1px solid var(--line); background: var(--card); border-radius: 8px;
+  padding: 0.35rem 0.7rem; font-size: 0.8rem;
+}
+.att i { font-style: normal; color: var(--dim); font-size: 0.72rem; }
+
+.bot {
+  border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+  background: var(--card); max-width: 40rem;
+}
+.bot .h {
+  display: flex; gap: 0.6rem; align-items: center; padding: 0.4rem 0.75rem;
+  background: var(--redsoft); color: var(--red); font-size: 0.76rem;
+}
+.bot.ok .h { background: var(--accsoft); color: var(--acc); }
+.bot .b { padding: 0.5rem 0.75rem; }
+.bot .b p { margin: 0; }
+.bot .meta { color: var(--dim); font-size: 0.72rem; margin-top: 0.2rem !important; }
+
+/* ------------------------------------------------- composer */
+.compose {
+  margin: 0.4rem 1.1rem 0.9rem; border: 1px solid var(--line);
+  border-radius: 10px; background: var(--card); box-shadow: var(--shadow);
+}
+.compose .cerr {
+  padding: 0.3rem 0.7rem; color: var(--red); font-size: 0.76rem;
+  border-bottom: 1px solid var(--line);
+}
+.compose .in { display: flex; gap: 0.6rem; padding: 0.45rem 0.55rem; align-items: flex-end; }
+.compose input {
+  flex: 1; border: none; background: transparent; color: var(--ink);
+  font: inherit; padding: 0.2rem 0.3rem;
+}
+.compose input:focus-visible { outline: none; }
+/* Multi-line composer — Enter sends, Shift+Enter inserts a newline
+   (Shell.tsx's Composer). Auto-grows via JS (scrollHeight) up to this
+   max-height, then scrolls internally instead of growing further. */
+.compose textarea {
+  flex: 1; border: none; background: transparent; color: var(--ink);
+  font: inherit; padding: 0.35rem 0.3rem; margin: 0; resize: none;
+  overflow-y: auto; max-height: 8rem; line-height: 1.45;
+}
+.compose textarea:focus-visible { outline: none; }
+.compose button {
+  background: var(--acc); color: var(--acc-ink); border: none;
+  border-radius: 7px; padding: 0.25rem 0.8rem; font-size: 0.82rem;
+}
+.compose button:disabled { opacity: 0.45; cursor: default; }
+
+/* ------------------------------------------------- notices */
+.notices {
+  position: fixed; right: 1rem; bottom: 1rem; display: flex;
+  flex-direction: column; gap: 0.5rem; max-width: 26rem; z-index: 10;
+}
+.notice {
+  display: flex; gap: 0.7rem; align-items: baseline;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: var(--shadow); padding: 0.5rem 0.8rem; font-size: 0.82rem;
+}
+.notice.sync_error { border-color: var(--red); }
+.notice.join_request { background: var(--ambersoft); border-color: var(--amberline); }
+.notice button {
+  margin-left: auto; background: transparent; border: none; color: var(--dim);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ulcard { animation: rise 0.35s ease-out; }
+  @keyframes rise {
+    from { transform: translateY(8px); opacity: 0; }
+    to { transform: none; opacity: 1; }
+  }
+}
+
+/* ------------------------------------------------- Write interactions */
+.m[data-pending] .mbody { opacity: 0.55; }
+.hd .sending { color: var(--dim); font-size: 0.7rem; }
+.hd .acts {
+  display: none; gap: 0.15rem; margin-left: 0.4rem;
+}
+.m:hover .hd .acts,
+.m:focus-within .hd .acts { display: inline-flex; }
+.hd .acts button {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  font-size: 0.72rem; padding: 0 0.4rem; color: var(--ink); line-height: 1.4;
+}
+.hd .acts button:hover { border-color: var(--acc); }
+.sendfail {
+  margin: 0.2rem 0 0; color: var(--red); font-size: 0.76rem;
+  display: flex; gap: 0.6rem; align-items: baseline;
+}
+.sendfail button {
+  background: transparent; border: 1px solid var(--red); border-radius: 6px;
+  color: var(--red); font-size: 0.72rem; padding: 0 0.5rem;
+}
+.reacts button {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
+  padding: 0 0.5rem; font-size: 0.74rem; color: var(--ink);
+}
+.reacts button:hover { border-color: var(--acc); }
+.compose .rb {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 0.3rem 0.7rem; color: var(--dim); font-size: 0.74rem;
+  border-bottom: 1px solid var(--line);
+}
+.compose .rb button {
+  background: transparent; border: none; color: var(--dim); font-size: 0.8rem;
+}
+.compose .rb button:hover { color: var(--ink); }
+
+/* ------------------------------------------------- Attachments */
+.compose { position: relative; }
+.compose .dropzone {
+  position: absolute; inset: 0; z-index: 5; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--acc) 12%, var(--card) 88%);
+  border: 2px dashed var(--acc); border-radius: 10px;
+  color: var(--acc); font-size: 0.82rem; pointer-events: none;
+}
+.compose .stagedbar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.3rem 0.7rem; color: var(--ink); font-size: 0.78rem;
+  border-bottom: 1px solid var(--line); background: var(--panel);
+}
+.compose .stagedbar button {
+  background: transparent; border: none; color: var(--dim); font-size: 0.8rem;
+}
+.compose .stagedbar button:hover { color: var(--ink); }
+.compose .attachbtn {
+  background: transparent; border: none; color: var(--dim); font-size: 1rem;
+  padding: 0.2rem 0.5rem; border-radius: 6px;
+}
+.compose .attachbtn:hover { background: var(--panel); color: var(--ink); }
+.compose .attachbtn:disabled { opacity: 0.45; cursor: default; }
+
+.att button {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  color: var(--ink); font-size: 0.72rem; padding: 0 0.45rem; margin-left: 0.15rem;
+}
+.att button:hover { border-color: var(--acc); }
+.att .atterr { color: var(--red); font-style: normal; margin-left: 0.3rem; }
+.att.attimg { padding: 0.25rem; }
+.att.attimg img {
+  display: block; max-width: 16rem; max-height: 12rem; border-radius: 6px;
+  cursor: pointer; object-fit: contain;
+}
+
+/* ------------------------------------------------- Onboarding & social */
+/* onboarding welcome card */
+.ulcard.wide { width: min(30rem, 92%); }
+.ulcard .tabs {
+  display: flex; gap: 0.3rem; margin: 0 0 1rem; padding: 0.2rem;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 9px;
+}
+.ulcard .tab {
+  flex: 1; background: transparent; border: none; border-radius: 7px;
+  padding: 0.4rem 0.3rem; color: var(--dim); font-size: 0.82rem;
+  white-space: nowrap;
+}
+.ulcard .tab.on { background: var(--acc); color: var(--acc-ink); }
+.ulcard .tab:disabled { opacity: 0.5; cursor: default; }
+.ulcard textarea {
+  border: 1px solid var(--line); border-radius: 8px; padding: 0.5rem 0.7rem;
+  background: var(--bg); color: var(--ink); font: inherit; resize: vertical;
+}
+.ulcard input[type="text"] { letter-spacing: normal; }
+.ulcard .linkbtn {
+  display: block; margin: 0.9rem auto 0; padding: 0; background: transparent;
+  border: none; color: var(--acc); font-size: 0.76rem; text-decoration: underline;
+}
+/* Two side-by-side settings links (UnlockCard). Each linkbtn keeps its own
+   auto top-margin; the row just centers and spaces them. */
+.ulinks { display: flex; justify-content: center; gap: 1.1rem; }
+.ulinks .linkbtn { margin-top: 0.9rem; }
+
+/* relay preset picker */
+.relaypick { text-align: left; display: flex; flex-direction: column; gap: 0.4rem; }
+.relaypick .fl, .mform label {
+  color: var(--dim); font-size: 0.72rem; letter-spacing: 0.04em;
+}
+.relaypick .segs { display: flex; gap: 0.3rem; }
+.relaypick .seg {
+  flex: 1; background: var(--bg); border: 1px solid var(--line);
+  border-radius: 7px; padding: 0.35rem 0.2rem; color: var(--ink); font-size: 0.78rem;
+  white-space: nowrap;
+}
+.relaypick .seg.on { background: var(--accsoft); border-color: var(--acc); color: var(--acc); }
+.relaypick .seg:disabled { opacity: 0.5; cursor: default; }
+.relaypick .fh { color: var(--dim); font-size: 0.72rem; margin: 0; }
+.relaypick .urls { letter-spacing: normal; }
+
+/* sidebar action toolbar */
+.sidetools {
+  display: flex; flex-wrap: wrap; gap: 0.25rem; padding: 0.15rem 0.5rem 0.5rem;
+  border-bottom: 1px solid var(--line); margin-bottom: 0.2rem;
+}
+.sidetools button {
+  position: relative; background: var(--card); border: 1px solid var(--line);
+  border-radius: 7px; color: var(--ink); font-size: 0.72rem; padding: 0.22rem 0.5rem;
+  white-space: nowrap;
+}
+.sidetools button:hover { border-color: var(--acc); color: var(--acc); }
+.sidetools .tbadge {
+  margin-left: 0.3rem; background: var(--red); color: #fff; border-radius: 999px;
+  font-size: 0.62rem; padding: 0 0.32rem; font-variant-numeric: tabular-nums;
+}
+
+/* Sidebar conversation filter — client-side, matches DM/channel
+   titles and workspace names (Shell.tsx's Sidebar). */
+.sidesearch { padding: 0.4rem 0.6rem 0.3rem; }
+.sidesearch input {
+  width: 100%; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--card); color: var(--ink); font: inherit;
+  padding: 0.28rem 0.55rem; font-size: 0.78rem;
+}
+.sidesearch input::placeholder { color: var(--dim); }
+.sidenone { padding: 0.4rem 1rem; }
+
+/* modal shell */
+.mback {
+  position: fixed; inset: 0; z-index: 20; display: grid; place-items: center;
+  background: color-mix(in srgb, #000 42%, transparent);
+}
+.mdl {
+  background: var(--card); border: 1px solid var(--line); border-radius: 13px;
+  box-shadow: 0 24px 60px -28px rgba(30, 22, 8, 0.5);
+  width: min(27rem, 92%); max-height: 84vh; overflow-y: auto;
+}
+.mdlhd {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.7rem 1rem; border-bottom: 1px solid var(--line);
+}
+.mdlhd b { font-size: 0.95rem; }
+.mdlhd button {
+  background: transparent; border: none; color: var(--dim); font-size: 0.9rem;
+}
+.mdlhd button:hover { color: var(--ink); }
+.mform { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.9rem 1rem 1.1rem; }
+.mform input, .mform select, .mform textarea {
+  border: 1px solid var(--line); border-radius: 8px; padding: 0.45rem 0.65rem;
+  background: var(--bg); color: var(--ink); font: inherit; resize: vertical;
+}
+.mform input:focus-visible, .mform select:focus-visible, .mform textarea:focus-visible {
+  outline: 2px solid var(--acc); outline-offset: 1px;
+}
+.mform > button {
+  background: var(--acc); color: var(--acc-ink); border: none; border-radius: 8px;
+  padding: 0.5rem; font-size: 0.85rem; margin-top: 0.2rem;
+}
+.mform > button:disabled { opacity: 0.5; cursor: default; }
+.mform button.ghost {
+  background: transparent; border: 1px solid var(--line); color: var(--ink);
+  border-radius: 7px; padding: 0.3rem 0.7rem; font-size: 0.78rem;
+}
+.mform button.ghost:hover { border-color: var(--acc); color: var(--acc); }
+.mform .chk {
+  display: flex; align-items: center; gap: 0.45rem; color: var(--ink);
+  font-size: 0.8rem; letter-spacing: normal;
+}
+.mform .chk input { width: auto; }
+.merr { color: var(--red); font-size: 0.8rem; margin: 0; }
+.mok { color: var(--acc); font-size: 0.8rem; margin: 0; }
+.mdim { color: var(--dim); font-size: 0.82rem; margin: 0; }
+.mdim.tiny { font-size: 0.72rem; }
+.invout { display: flex; flex-direction: column; gap: 0.4rem; }
+.invout textarea { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.74rem; }
+
+/* join-requests rows */
+.reqrow {
+  display: flex; align-items: center; gap: 0.6rem; justify-content: space-between;
+  border: 1px solid var(--line); border-radius: 9px; padding: 0.5rem 0.65rem;
+  background: var(--bg);
+}
+.reqmeta { flex: 1; display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.reqnpub {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.78rem;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.reqws { color: var(--dim); font-size: 0.74rem; }
+.trust { font-style: normal; font-size: 0.72rem; }
+.trust.ok { color: var(--acc); }
+.trust.warn { color: var(--amber); }
+.reqacts { display: flex; gap: 0.35rem; flex: none; }
+.reqacts button {
+  background: var(--acc); color: var(--acc-ink); border: none; border-radius: 7px;
+  padding: 0.28rem 0.7rem; font-size: 0.78rem;
+}
+.reqacts button.ghost {
+  background: transparent; border: 1px solid var(--line); color: var(--ink);
+}
+.reqacts button:disabled { opacity: 0.5; cursor: default; }
+
+/* relay list rows */
+.relayrow {
+  display: flex; align-items: center; gap: 0.6rem; justify-content: space-between;
+  border: 1px solid var(--line); border-radius: 9px; padding: 0.4rem 0.65rem;
+  background: var(--bg);
+}
+.relayurl {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.76rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ------------------------------------------------- Governance & channels */
+/* sidebar workspace-row settings entry */
+.side .sec.wsrow {
+  display: flex; align-items: center; justify-content: space-between; padding-right: 0.55rem;
+}
+.wsgear {
+  background: transparent; border: none; color: var(--dim); font-size: 0.74rem;
+  line-height: 1; padding: 0 0.15rem;
+}
+.wsgear:hover { color: var(--acc); }
+
+/* chat-header settings entry (workspace/private-channel conversations) */
+.chead .gear {
+  background: transparent; border: 1px solid var(--line); border-radius: 6px;
+  color: var(--dim); font-size: 0.72rem; padding: 0.15rem 0.55rem;
+}
+.chead .gear:hover { border-color: var(--acc); color: var(--acc); }
+
+/* section dividers + role badges inside the workspace/identity modals */
+.mform hr { border: none; border-top: 1px solid var(--line); margin: 0.25rem 0; width: 100%; }
+.badge {
+  font-style: normal; font-size: 0.68rem; padding: 0 0.4rem; border-radius: 999px;
+  margin-right: 0.3rem;
+}
+.badge.admin { color: var(--amber); background: var(--ambersoft); }
+.badge.you { color: var(--acc); background: var(--accsoft); }
+
+/* destructive action + its inline confirm */
+.reqacts button.danger, .mform button.danger {
+  background: var(--red); color: #fff; border: none;
+}
+.confirmtext { color: var(--red); font-size: 0.78rem; white-space: nowrap; }

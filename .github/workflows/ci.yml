@@ -1,0 +1,194 @@
+name: CI
+
+# Docs-only changes skip the whole matrix: nothing under these paths can
+# affect a build or test. GitHub evaluates paths-ignore against every commit
+# in the push, so a push mixing docs and code still runs. Keep the two lists
+# identical.
+on:
+  pull_request:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "LICENSE*"
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "LICENSE*"
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Pull requests from forks run this workflow. It needs nothing beyond reading
+# the code, and must never be given a secret.
+permissions:
+  contents: read
+
+jobs:
+  # check: fmt/clippy/test, run once per matrix leg (ubuntu-22.04,
+  # windows-2022). Both legs are HARD gates and run the identical
+  # checkout → rustup show → rust-cache → fmt → clippy → test sequence —
+  # only runs-on differs, hence the matrix instead of two near-duplicate
+  # jobs.
+  #
+  # windows-2022 leg — Windows port, stage 2 (HARD gate — desktop-shell track
+  # B-1). Stage 1's build-only probe answered the big unknown: the vendored
+  # SQLCipher+OpenSSL C stack (MDK storage-sqlite → rusqlite
+  # `bundled-sqlcipher-vendored-openssl`) compiles and links under MSVC (two
+  # green runs: first-ever build 2026-07-17 cold, then warm-cache). Promoted
+  # to the same fmt/clippy/test gate as the ubuntu-22.04 leg — `cargo test`
+  # here is load-bearing: it exercises the SQLCipher runtime path (encrypted
+  # DB create/read/write), not just link success. Pinned windows-2022 (same
+  # pin discipline as ubuntu-22.04) ships MSVC Build Tools + Strawberry Perl
+  # (openssl-src's Configure needs perl); NASM absence only disables
+  # OpenSSL's asm fast path. All tests are headless-safe on Windows (ratatui
+  # uses TestBackend; passphrases via MOYU_PASSPHRASE).
+  check:
+    name: fmt / clippy / test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # rust-toolchain.toml pins 1.97.1 + rustfmt + clippy; `rustup show`
+      # installs exactly that toolchain in the working directory.
+      - name: Install pinned toolchain
+        run: rustup show
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - name: fmt (hard gate)
+        run: cargo fmt --all --check
+
+      # Hard gate: the pre-existing baseline warnings (&PathBuf-vs-&Path,
+      # collapsible-if, while-let, moyu-core assert!(true)) are cleaned up, so
+      # any new clippy warning now fails CI.
+      - name: clippy (hard gate)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: test (hard gate)
+        run: cargo test -p moyu-core -p moyu-cli
+
+  # Desktop shell (apps/desktop), PR-level lightweight check — deliberately
+  # NOT a full `tauri build` bundle (that's release-desktop.yml's job, only
+  # on `app-v*` tags). This is a fast correctness gate: TS types, that the
+  # frontend still builds, and that the (separate, `[workspace]`-excluded —
+  # see root Cargo.toml) src-tauri crate still compiles clean under clippy.
+  desktop:
+    name: desktop (typecheck / build / clippy)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # Same pinned toolchain as the CLI jobs (rust-toolchain.toml, resolved
+      # by walking up from CWD — covers apps/desktop/src-tauri too, even
+      # though it's its own separate cargo workspace).
+      - name: Install pinned toolchain
+        run: rustup show
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+
+      # Headers tauri/tauri-build need to compile on Linux (webkit2gtk +
+      # friends) — shared with release-desktop.yml's ubuntu leg via this
+      # composite action, so the two lists can't drift again like they did
+      # before it existed. Release adds patchelf/xdg-utils on top (needed for
+      # AppImage/deb bundling); clippy here doesn't need them.
+      - name: Install Linux system dependencies
+        uses: ./.github/actions/desktop-linux-deps
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+        with:
+          version: 9.15.9
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: apps/desktop/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: apps/desktop
+        run: pnpm install --frozen-lockfile
+
+      - name: typecheck
+        working-directory: apps/desktop
+        run: pnpm typecheck
+
+      - name: unit tests (vitest)
+        working-directory: apps/desktop
+        run: pnpm test
+
+      - name: vite build
+        working-directory: apps/desktop
+        run: pnpm build
+
+      # tauri-build's build script hard-fails if the `externalBin` sidecar
+      # (binaries/moyu-<host-triple>) doesn't exist — but it only checks
+      # existence, so an empty placeholder satisfies clippy without paying
+      # for a full moyu-cli release build here (that's release-desktop.yml's
+      # job; local dev stages the real one via build-sidecar.mjs).
+      - name: Stage placeholder sidecar for clippy
+        working-directory: apps/desktop/src-tauri
+        run: |
+          host="$(rustc -vV | awk '/^host:/{print $2}')"
+          mkdir -p binaries
+          : > "binaries/moyu-$host"
+          chmod +x "binaries/moyu-$host"
+
+      - name: clippy (src-tauri, hard gate)
+        working-directory: apps/desktop/src-tauri
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  # Real-protocol gate: two-party MLS-over-Nostr round-trips (DM, workspace,
+  # private channels, attachments, reactions, bot events, onboarding,
+  # governance, the `moyu session` sidecar protocol) against a local relay.
+  # This is the only automation that catches MDK wire-format drift,
+  # convergence regressions, and session-protocol breakage.
+  e2e:
+    name: e2e (MLS-over-Nostr round-trip)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    services:
+      relay:
+        # Official nostr-rs-relay image (the same relay the local script
+        # documents); the container listens on 8080 with its default config.
+        image: scsibug/nostr-rs-relay:0.10.0
+        ports:
+          - 7777:8080
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Install pinned toolchain
+        run: rustup show
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - name: Build moyu-cli (debug)
+        run: cargo build -p moyu-cli
+
+      - name: Wait for the relay
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf -H 'Accept: application/nostr+json' http://127.0.0.1:7777 >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "relay did not come up on 127.0.0.1:7777" >&2
+          exit 1
+
+      # The script already isolates every identity under `mktemp -d` and
+      # passes --dev-allow-loopback itself; python3 (ubuntu default) serves
+      # the Blossom mock for the attachment section.
+      - name: Run the e2e suite
+        env:
+          RELAY: ws://127.0.0.1:7777
+          MOYU_BIN: ${{ github.workspace }}/target/debug/moyu
+        run: bash scripts/e2e-local.sh
