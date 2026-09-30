@@ -20,9 +20,7 @@ version = "0.2.0"
 license = "MIT"
 publish = false
 # cargo-dist derives every installer and artifact download URL from
-# `repository`, and publishes the GitHub Release here. Releases up to 0.2.0
-# live in the Homebrew tap repo (tsgx1990/homebrew-moyu); later ones live in
-# this repository.
+# `repository`, and publishes the GitHub Release here.
 repository = "https://github.com/tsgx1990/moyu"
 homepage = "https://github.com/tsgx1990/moyu"
 description = "End-to-end-encrypted CLI chat for programmers — MLS over Nostr (Marmot)."

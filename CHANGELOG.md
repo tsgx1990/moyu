@@ -118,13 +118,15 @@ SemVer while the project is pre-1.0 (minor bumps may break).
   Report vulnerabilities through its private advisory form (see
   `SECURITY.md`). A `scripts/privacy-check.sh` gate (gitleaks plus
   repository-specific rules) runs as a pre-commit hook and in CI.
-- **Releases move to the source repository.** From this version on, the CLI
-  archives, the installer scripts and the desktop installers are published
-  in <https://github.com/tsgx1990/moyu/releases>; 0.2.0 and earlier stay
-  where they are, in `tsgx1990/homebrew-moyu`. That repository remains the
-  Homebrew tap, so `brew install tsgx1990/moyu/moyu-cli` does not change.
-  The `curl | sh` and PowerShell one-liners now download from the source
-  repository.
+- **Releases move to the source repository, and the Homebrew tap is
+  discontinued.** From this version on, the CLI archives, the installer
+  scripts and the desktop installers are published in
+  <https://github.com/tsgx1990/moyu/releases>, and the `curl | sh` and
+  PowerShell one-liners download from there. The old distribution
+  repository `tsgx1990/homebrew-moyu`, which held 0.2.0 and earlier and the
+  Homebrew formula, will be removed. If you installed with Homebrew, run
+  `brew uninstall moyu-cli && brew untap tsgx1990/moyu`, then use the
+  `curl | sh` installer; your identity and data directory are not touched.
 - The desktop release builds with a read-only token and creates the draft
   release in a separate job that runs no project code, so a compromised npm
   dependency can no longer reach a token that can write to a repository.

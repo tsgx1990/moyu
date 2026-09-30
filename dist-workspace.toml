@@ -10,8 +10,11 @@ ci = "github"
 # The installers to generate for each app. "powershell" is the Windows
 # analogue of the shell installer (`irm .../moyu-cli-installer.ps1 | iex`);
 # msi deliberately skipped for v1 (needs WiX wiring, and an unsigned
-# installer is a louder SmartScreen trigger than a zip).
-installers = ["shell", "powershell", "homebrew"]
+# installer is a louder SmartScreen trigger than a zip). No Homebrew: a tap
+# has to be its own `homebrew-`-prefixed repository with a token that can
+# push to it, and this project keeps a single repository and no long-lived
+# release tokens.
+installers = ["shell", "powershell"]
 # Only tags namespaced `cli/vX.Y.Z` trigger this pipeline. Load-bearing for
 # the desktop app: without a namespace the generated workflow matches
 # '**[0-9]+.[0-9]+.[0-9]+*', which would ALSO fire on a desktop `app-vX.Y.Z`
@@ -29,12 +32,6 @@ targets = [
     "aarch64-unknown-linux-gnu",
     "x86_64-pc-windows-msvc",
 ]
-# Homebrew tap (public repo, must be `homebrew-` prefixed so that
-# `brew install tsgx1990/moyu/moyu-cli` finds it). It only holds the formula;
-# the GitHub Release itself is published in this repository with the
-# workflow's own token, and only the formula push needs HOMEBREW_TAP_TOKEN.
-tap = "tsgx1990/homebrew-moyu"
-publish-jobs = ["homebrew"]
 # PRs only run `plan`: a pull request never compiles the release matrix, and
 # never reaches a job that holds a release secret.
 pr-run-mode = "plan"
@@ -53,8 +50,8 @@ aarch64-unknown-linux-gnu = "ubuntu-24.04-arm"
 x86_64-pc-windows-msvc = "windows-2022"
 
 # Pin the actions in the generated cli-release.yml to commit SHAs instead of
-# moving major tags: its `host` and `publish-homebrew-formula` jobs hold the
-# release tokens. When bumping one, change it here and re-run `dist generate`
+# moving major tags: its `host` job holds the token that creates the
+# release. When bumping one, change it here and re-run `dist generate`
 # (the workflow's own `plan` step fails if the two disagree).
 [dist.github-action-commits]
 "actions/checkout" = "d23441a48e516b6c34aea4fa41551a30e30af803" # v6.1.0

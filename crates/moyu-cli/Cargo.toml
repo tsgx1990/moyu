@@ -5,8 +5,8 @@ version.workspace = true
 license.workspace = true
 publish.workspace = true
 # Inherit the workspace `repository`/`homepage`/`description` so cargo-dist
-# can derive the installer URLs and Homebrew formula fields (see the comment
-# on `repository` in the root Cargo.toml).
+# can derive the installer URLs (see the comment on `repository` in the root
+# Cargo.toml).
 repository.workspace = true
 homepage.workspace = true
 description.workspace = true

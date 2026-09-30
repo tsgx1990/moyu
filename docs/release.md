@@ -6,7 +6,7 @@
 
 | 产物 | 触发 | 工作流 | 落点 |
 |---|---|---|---|
-| CLI(5 个目标 + shell/powershell 安装脚本 + Homebrew formula) | 在 `main` 上打 tag **`cli/vX.Y.Z`** | `.github/workflows/cli-release.yml`(cargo-dist 生成) | 本仓库的 Release(直接发布);formula 推到 tap 仓 `tsgx1990/homebrew-moyu` |
+| CLI(5 个目标 + shell/powershell 安装脚本) | 在 `main` 上打 tag **`cli/vX.Y.Z`** | `.github/workflows/cli-release.yml`(cargo-dist 生成) | 本仓库的 Release(直接发布) |
 | 桌面(macOS `.dmg` ×2 / Linux `.deb`+`.AppImage` / Windows NSIS) | 打 tag **`app-vX.Y.Z`** | `.github/workflows/release-desktop.yml` | 本仓库的 **draft** Release,人工检查后 publish |
 
 两条硬约束:tag 里的版本号必须分别等于 workspace `Cargo.toml` 的 `version`
@@ -21,11 +21,11 @@ gh release edit app-vX.Y.Z --draft=false --latest=false
 
 要是已经被桌面版抢走了,用 `gh release edit cli/vX.Y.Z --latest` 钉回来。
 
-源码和发行物都在本仓库。0.2.0 及更早的发行物在 `tsgx1990/homebrew-moyu`,原样
-保留(那几版的安装脚本和旧 formula 仍指向那里);那个仓库现在只作 Homebrew tap。
-创建 Release 用工作流自带的 `GITHUB_TOKEN`,只需要一个仓库 secret:
-`HOMEBREW_TAP_TOKEN`(只对 `tsgx1990/homebrew-moyu` 有 Contents 读写权限的
-fine-grained PAT,只有推 formula 的 job 拿得到)。
+源码和发行物都在本仓库,创建 Release 只用工作流自带的 `GITHUB_TOKEN`,**不需要
+配置任何仓库 secret**。不提供 Homebrew:tap 必须是一个单独的 `homebrew-` 前缀
+仓库,还得有一个能往里推送的长期令牌,而本项目只保留一个仓库、不持有长期发布令牌。
+0.2.0 及更早的发行物发在 `tsgx1990/homebrew-moyu`,0.3.0 发出、文档改好之后
+删除该仓库。
 
 ## 哪个 job 跑在哪台机器上
 
@@ -81,14 +81,12 @@ cargo-dist 侧没有等价入口,本机跑
    版本一节;四道门(fmt / build / test / clippy)与本地 e2e 绿。
 2. 可选:冒烟(上一节)。
 3. CLI:`git tag cli/vX.Y.Z && git push origin cli/vX.Y.Z`,
-   `gh run list --workflow=cli-release.yml` 盯到 `host` 与
-   `publish-homebrew-formula` 绿。
+   `gh run list --workflow=cli-release.yml` 盯到 `host` 与 `announce` 绿。
 4. 桌面:`git tag app-vX.Y.Z && git push origin app-vX.Y.Z`;draft Release 出来
    后核对资产(2 个 `.dmg`、`.deb`、`.AppImage`、`-setup.exe`),写安装说明(免签名,
    见 `docs/desktop-install.md`),用 `gh release edit app-vX.Y.Z --draft=false
    --latest=false` publish。
 5. 确认 Latest 仍是 CLI:`gh release view --json tagName` 应为 `cli/vX.Y.Z`。
-6. 验证安装:`curl | sh` 安装脚本、`brew install tsgx1990/moyu/moyu-cli`、下载的
-   tarball 校验和。
+6. 验证安装:`curl | sh` 安装脚本、PowerShell 安装脚本、下载的 tarball 校验和。
 7. 发版附带的 `source.tar.gz` 是本仓库在该 tag 的文件树(`git archive`)。发版前
    确认没有把不该公开的文件提交进来(`scripts/privacy-check.sh`)。
