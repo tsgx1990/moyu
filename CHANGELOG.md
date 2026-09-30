@@ -128,8 +128,8 @@ are now published in this repository, and the Homebrew tap is discontinued.
   one). The desktop app's build tools `browserslist`, `postcss` and
   `baseline-browser-mapping` are updated for GHSA-73wf-gq98-2v4g,
   GHSA-fxqj-rqcc-2cmp and GHSA-w5vr-8v7q-w6rv; they run only while building
-  the app and are not part of it. Two advisories remain open, both
-  soundness issues in APIs that neither moyu nor its dependencies call; see
+  the app and are not part of it. Two soundness advisories remain open, in
+  APIs that nothing in moyu's build calls as far as we checked; see
   `docs/threat-model.md` ("Known unfixed advisories").
 
 ### Changed

@@ -199,16 +199,18 @@ RFC 9420 over Nostr), and this document does not restate MLS's own analysis.
 
 ### Known unfixed advisories
 
-None with a vulnerability classification as of 2026-09-30. Two soundness
-advisories (RustSec *unsound*, which GitHub also lists as vulnerabilities)
-are open in APIs that neither moyu nor its dependencies call:
+No RustSec advisory of kind *vulnerability* is open as of 2026-09-30. Two
+advisories of kind *unsound* are open (GitHub lists them as
+vulnerabilities too). Each is in an API that, as far as we checked the
+sources of the resolved dependency tree, nothing in moyu's build calls:
 
 - `lru` 0.12 `IterMut` (RUSTSEC-2026-0002), via `ratatui` 0.29, which moyu
   keeps at the version MDK uses. ratatui's layout cache only calls
   `get_or_insert`, `resize` and `cap`.
 - `glib` 0.18 `VariantStrIter` (RUSTSEC-2024-0429), via the GTK stack Tauri
-  uses on Linux (desktop app only). Fixed in glib 0.20, which Tauri has not
-  moved to yet.
+  uses on Linux (desktop app only). The only callers of
+  `Variant::array_iter_str` are glib's own tests. Fixed in glib 0.20, which
+  Tauri has not moved to yet.
 
 Transitive crates
 flagged *unmaintained* by RustSec (`instant`, `paste`, `proc-macro-error2`,
