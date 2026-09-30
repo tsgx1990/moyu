@@ -77,9 +77,16 @@ gh run list --workflow=release-desktop.yml --limit 1
 gh run view <run-id> --json conclusion,jobs   # 结论只信这个,别接 tail
 ```
 
-`workflow_dispatch` 只构建、不上传任何东西。不做冒烟的代价是打包问题要到打 tag
-后才暴露:桌面四条腿没全成功就不会建 draft,修好后删掉 tag 重打,或者直接发下一
-个补丁版本。cargo-dist 侧没有等价入口,本机跑
+`workflow_dispatch` 只构建,安装包作为 artifact 留 7 天,不建 Release、不发布任何
+东西。不做冒烟的代价是打包问题要到打 tag 后才暴露:
+
+- 桌面:四条腿没全成功就不会建 draft,修好后删掉 `app-vX.Y.Z` tag 重打。如果已经
+  建了 draft(或 `gh release create` 半途失败留下了一个),先
+  `gh release delete app-vX.Y.Z --cleanup-tag --yes` 再重打。
+- CLI:Release 一旦发布,安装脚本和校验和可能已经被人下载,不要重打同一个 tag,
+  直接发下一个补丁版本。
+
+cargo-dist 侧没有等价入口,本机跑
 `dist build --artifacts=local --target <triple>` 与 runner 上会做的事一致。
 
 ## 步骤清单
