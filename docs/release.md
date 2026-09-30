@@ -62,7 +62,14 @@ GitHub 已预告:托管的 Intel macOS 镜像会随 macOS 15 镜像一起退役(
   `GH_TOKEN`,同时编译所有依赖的 build 脚本。cargo-dist 没有给内置 job 配权限的
   选项,要收紧只能手改生成文件并放弃 `dist generate --check`。
 
-## 打 tag 前的冒烟
+## 什么时候打包
+
+打包只在推 tag 时自动发生(`cli/vX.Y.Z` 打 CLI,`app-vX.Y.Z` 打桌面)。PR 和推
+main 只跑 CI(检查、测试、e2e)和 CLI 的 `plan`,不打任何安装包。桌面全平台打包
+要四十分钟左右(macOS Intel 那条腿最慢),所以平时不跑。
+
+改了打包相关的东西(`release-desktop.yml`、tauri 配置、sidecar 脚本),又想在打
+tag 之前确认,由维护者决定手动触发一次(可选的冒烟):
 
 ```sh
 gh workflow run release-desktop.yml --ref main -f legs=macos   # 或 legs=all
@@ -70,8 +77,9 @@ gh run list --workflow=release-desktop.yml --limit 1
 gh run view <run-id> --json conclusion,jobs   # 结论只信这个,别接 tail
 ```
 
-`workflow_dispatch` 只构建、不上传任何东西,用来确认 tauri 打包还好使。
-cargo-dist 侧没有等价入口,本机跑
+`workflow_dispatch` 只构建、不上传任何东西。不做冒烟的代价是打包问题要到打 tag
+后才暴露:桌面四条腿没全成功就不会建 draft,修好后删掉 tag 重打,或者直接发下一
+个补丁版本。cargo-dist 侧没有等价入口,本机跑
 `dist build --artifacts=local --target <triple>` 与 runner 上会做的事一致。
 
 ## 步骤清单
@@ -79,7 +87,7 @@ cargo-dist 侧没有等价入口,本机跑
 1. 版本号四处一致:workspace `Cargo.toml`、`apps/desktop/package.json`、
    `apps/desktop/src-tauri/Cargo.toml`、`tauri.conf.json`;`CHANGELOG.md` 有该
    版本一节;四道门(fmt / build / test / clippy)与本地 e2e 绿。
-2. 可选:冒烟(上一节)。
+2. 可选:手动冒烟(上一节),由维护者决定。
 3. CLI:`git tag cli/vX.Y.Z && git push origin cli/vX.Y.Z`,
    `gh run list --workflow=cli-release.yml` 盯到 `host` 与 `announce` 绿。
 4. 桌面:`git tag app-vX.Y.Z && git push origin app-vX.Y.Z`;draft Release 出来
