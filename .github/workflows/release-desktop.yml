@@ -11,13 +11,16 @@
 # self-hosted runners and must not get one — a public repository's workflows
 # can be triggered by anyone's pull request.
 #
-# Cross-repo publish: `tauri-apps/tauri-action` natively supports uploading
-# the GitHub Release to a different owner/repo than the one running the
-# workflow (inputs `owner`/`repo`, needs a `GITHUB_TOKEN` with write access to
-# that repo — see https://github.com/tauri-apps/tauri-action#readme, "GitHub
-# Configuration"). That's the same cross-repo model cli-release.yml already
-# uses via `GH_RELEASES_TOKEN` + `dist-workspace.toml`'s
-# `github-releases-repo`, just via the Action's own inputs instead of `gh`.
+# Two stages, so no write token ever sits next to third-party code:
+#   - `publish-tauri` builds every leg with a read-only token. It runs
+#     `pnpm install` and compiles every crate's build script, so it must not
+#     hold anything that could push to this repository. tauri-action runs in
+#     its build-only mode and the installers leave the job as artifacts.
+#   - `release` holds `contents: write`, runs no project code and installs
+#     nothing: it downloads the artifacts and creates ONE draft GitHub
+#     Release in this repository. It only runs when every leg succeeded, so
+#     a draft never has a platform missing, and one job creating the draft
+#     avoids the multi-leg check-then-create race (tauri-apps/tauri-action#914).
 #
 # RUSTFLAGS: never set globally here. The root .cargo/config.toml pins an
 # 8 MiB Windows link-arg via target-scoped rustflags (moyu.exe stack-overflows
@@ -41,13 +44,7 @@ on:
         options: [all, macos]
         default: all
 
-env:
-  # Homebrew-moyu is the public distribution repo; the CLI release already
-  # publishes there (dist-workspace.toml's `github-releases-repo`). Same
-  # secret, same target repo — no new secret name introduced.
-  RELEASE_OWNER: tsgx1990
-  RELEASE_REPO: homebrew-moyu
-
+# Read-only by default; only the `release` job widens this.
 permissions:
   contents: read
 
@@ -168,37 +165,64 @@ jobs:
       - name: Build sidecar
         run: node scripts/build-sidecar.mjs
 
-      # Every action in this workflow is pinned to a commit SHA: this job
-      # holds the cross-repo write token, and a moved tag must not be able
-      # to swap the code that runs next to it.
-      - name: Build and release (tauri-action)
+      # Every action in this workflow is pinned to a commit SHA: a moved tag
+      # must not be able to swap the code that builds the shipped installers.
+      # No tagName / releaseId and no token: tauri-action only builds.
+      - name: Build (tauri-action, build-only)
         uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1
-        env:
-          # Needs write access to the cross-repo release target
-          # (tsgx1990/homebrew-moyu), which this repo's own GITHUB_TOKEN
-          # cannot have — same token cli-release.yml's `host` job uses.
-          GITHUB_TOKEN: ${{ secrets.GH_RELEASES_TOKEN }}
         with:
           projectPath: apps/desktop
-          owner: ${{ env.RELEASE_OWNER }}
-          repo: ${{ env.RELEASE_REPO }}
-          # Only set on an actual tag push; omitted on workflow_dispatch,
-          # which makes tauri-action build without creating/uploading to any
-          # release (see the Action's own "build-only" mode).
-          tagName: ${{ github.event_name == 'push' && github.ref_name || '' }}
-          releaseName: ${{ github.event_name == 'push' && format('moyu desktop {0}', github.ref_name) || '' }}
-          releaseBody: 'See the assets below to download and install moyu desktop.'
-          # The tag doesn't exist yet in the target repo (it's created there
-          # from scratch), so it must be told which commitish of THAT repo to
-          # point at — its default branch, same as any other GitHub Release.
-          releaseCommitish: ${{ github.event_name == 'push' && 'main' || '' }}
-          # Draft + 4-leg matrix has a known check-then-create race: two legs
-          # can occasionally each create their own draft, splitting the assets
-          # (tauri-apps/tauri-action#914). Bounded because drafts are reviewed
-          # by a human before publishing — if two drafts appear for one tag,
-          # delete both and re-run the failed legs.
-          releaseDraft: true
-          prerelease: false
           # No code signing yet (mac notarization / Windows Authenticode both
           # deferred, see docs/desktop-install.md) — nothing to configure
           # here for that.
+
+      # Exactly the bundle formats tauri.conf.json enables (dmg, deb,
+      # appimage, nsis); `**` covers both target/release and
+      # target/<triple>/release.
+      - name: Upload installers
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: desktop-${{ matrix.os_name }}
+          path: |
+            apps/desktop/src-tauri/target/**/bundle/dmg/*.dmg
+            apps/desktop/src-tauri/target/**/bundle/deb/*.deb
+            apps/desktop/src-tauri/target/**/bundle/appimage/*.AppImage
+            apps/desktop/src-tauri/target/**/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: create draft release
+    needs: [plan, publish-tauri]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: desktop-*
+          path: artifacts
+
+      # A draft, so a human checks the installers before anyone can download
+      # them. Publish with `--latest=false` (docs/release.md): the CLI's
+      # `releases/latest/download/...` installer URLs must keep resolving to
+      # the CLI release.
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          mapfile -t files < <(find artifacts -type f | sort)
+          printf '%s\n' "${files[@]}"
+          count() { printf '%s\n' "${files[@]}" | grep -c -- "$1" || true; }
+          if [ "$(count '\.dmg$')" -ne 2 ] || [ "$(count '\.deb$')" -ne 1 ] \
+             || [ "$(count '\.AppImage$')" -ne 1 ] || [ "$(count '-setup\.exe$')" -ne 1 ]; then
+            echo "::error::expected 2 dmg, 1 deb, 1 AppImage and 1 setup.exe"
+            exit 1
+          fi
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --draft \
+            --title "moyu desktop $VERSION" \
+            --notes 'See the assets below to download and install moyu desktop.' \
+            "${files[@]}"

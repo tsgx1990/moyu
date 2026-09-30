@@ -29,13 +29,12 @@ targets = [
     "aarch64-unknown-linux-gnu",
     "x86_64-pc-windows-msvc",
 ]
-# Homebrew tap (public repo, must be `homebrew-` prefixed).
+# Homebrew tap (public repo, must be `homebrew-` prefixed so that
+# `brew install tsgx1990/moyu/moyu-cli` finds it). It only holds the formula;
+# the GitHub Release itself is published in this repository with the
+# workflow's own token, and only the formula push needs HOMEBREW_TAP_TOKEN.
 tap = "tsgx1990/homebrew-moyu"
 publish-jobs = ["homebrew"]
-# Cross-repo: build in the source repo, publish the GitHub Release to the tap
-# repo (needs the GH_RELEASES_TOKEN secret). The installer URLs in the README
-# and the Homebrew formula already point there, so releases stay in one place.
-github-releases-repo = "tsgx1990/homebrew-moyu"
 # PRs only run `plan`: a pull request never compiles the release matrix, and
 # never reaches a job that holds a release secret.
 pr-run-mode = "plan"

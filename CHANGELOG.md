@@ -115,11 +115,19 @@ SemVer while the project is pre-1.0 (minor bumps may break).
 ### Changed
 
 - **The source repository is public** at <https://github.com/tsgx1990/moyu>.
-  Releases are still published to `tsgx1990/homebrew-moyu`, so install
-  commands do not change. Report vulnerabilities through the source
-  repository's private advisory form (see `SECURITY.md`). A
-  `scripts/privacy-check.sh` gate (gitleaks plus repository-specific rules)
-  runs as a pre-commit hook and in CI.
+  Report vulnerabilities through its private advisory form (see
+  `SECURITY.md`). A `scripts/privacy-check.sh` gate (gitleaks plus
+  repository-specific rules) runs as a pre-commit hook and in CI.
+- **Releases move to the source repository.** From this version on, the CLI
+  archives, the installer scripts and the desktop installers are published
+  in <https://github.com/tsgx1990/moyu/releases>; 0.2.0 and earlier stay
+  where they are, in `tsgx1990/homebrew-moyu`. That repository remains the
+  Homebrew tap, so `brew install tsgx1990/moyu/moyu-cli` does not change.
+  The `curl | sh` and PowerShell one-liners now download from the source
+  repository.
+- The desktop release builds with a read-only token and creates the draft
+  release in a separate job that runs no project code, so a compromised npm
+  dependency can no longer reach a token that can write to a repository.
 - moyu is in maintenance mode: security fixes and MDK upgrades, no new
   features planned (README, "Status").
 - **MDK upgraded to v0.9.20** (from v0.9.16; upstream 2026-09-08). The fork

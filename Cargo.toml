@@ -19,12 +19,11 @@ edition = "2024"
 version = "0.2.0"
 license = "MIT"
 publish = false
-# `repository` is the DISTRIBUTION repo, not this source repo
-# (https://github.com/tsgx1990/moyu): cargo-dist derives every installer and
-# artifact download URL from it, and releases are published to the Homebrew
-# tap repo (see `github-releases-repo` in dist-workspace.toml). Changing it
-# would point the installers at releases that do not exist.
-repository = "https://github.com/tsgx1990/homebrew-moyu"
+# cargo-dist derives every installer and artifact download URL from
+# `repository`, and publishes the GitHub Release here. Releases up to 0.2.0
+# live in the Homebrew tap repo (tsgx1990/homebrew-moyu); later ones live in
+# this repository.
+repository = "https://github.com/tsgx1990/moyu"
 homepage = "https://github.com/tsgx1990/moyu"
 description = "End-to-end-encrypted CLI chat for programmers — MLS over Nostr (Marmot)."
 

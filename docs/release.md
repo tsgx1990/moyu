@@ -6,22 +6,26 @@
 
 | 产物 | 触发 | 工作流 | 落点 |
 |---|---|---|---|
-| CLI(5 个目标 + shell/powershell 安装脚本 + Homebrew formula) | 在 `main` 上打 tag **`cli/vX.Y.Z`** | `.github/workflows/cli-release.yml`(cargo-dist 生成) | 发行仓 `tsgx1990/homebrew-moyu` 的 Release(直接发布) |
-| 桌面(macOS `.dmg` ×2 / Linux `.deb`+`.AppImage` / Windows NSIS) | 打 tag **`app-vX.Y.Z`** | `.github/workflows/release-desktop.yml` | 同一发行仓的 **draft** Release,人工检查后 publish |
+| CLI(5 个目标 + shell/powershell 安装脚本 + Homebrew formula) | 在 `main` 上打 tag **`cli/vX.Y.Z`** | `.github/workflows/cli-release.yml`(cargo-dist 生成) | 本仓库的 Release(直接发布);formula 推到 tap 仓 `tsgx1990/homebrew-moyu` |
+| 桌面(macOS `.dmg` ×2 / Linux `.deb`+`.AppImage` / Windows NSIS) | 打 tag **`app-vX.Y.Z`** | `.github/workflows/release-desktop.yml` | 本仓库的 **draft** Release,人工检查后 publish |
 
 两条硬约束:tag 里的版本号必须分别等于 workspace `Cargo.toml` 的 `version`
 和 `apps/desktop/src-tauri/tauri.conf.json` 的 `version`,不等就在构建矩阵
-之前失败退出。桌面 Release publish 之后 GitHub 会把它标成 "Latest",而 README
-的安装命令走 `releases/latest/download/moyu-cli-installer.sh`,所以**发完桌面
-版必须把 CLI 的 Release 重新钉回 Latest**:
+之前失败退出。README 的安装命令走 `releases/latest/download/moyu-cli-installer.sh`,
+所以 "Latest" 必须一直是 CLI 的 Release。GitHub 默认会把刚 publish 的 Release
+标成 Latest,**publish 桌面 draft 时一定带 `--latest=false`**:
 
 ```sh
-gh release edit cli/vX.Y.Z -R tsgx1990/homebrew-moyu --latest
+gh release edit app-vX.Y.Z --draft=false --latest=false
 ```
 
-源码在本仓库,发行物在 `tsgx1990/homebrew-moyu`(安装脚本和 Homebrew formula
-里的下载地址都指向那里)。跨仓发布用两个仓库 secret:`GH_RELEASES_TOKEN`
-(对发行仓有写权限的 fine-grained PAT)和 `HOMEBREW_TAP_TOKEN`(推 formula)。
+要是已经被桌面版抢走了,用 `gh release edit cli/vX.Y.Z --latest` 钉回来。
+
+源码和发行物都在本仓库。0.2.0 及更早的发行物在 `tsgx1990/homebrew-moyu`,原样
+保留(那几版的安装脚本和旧 formula 仍指向那里);那个仓库现在只作 Homebrew tap。
+创建 Release 用工作流自带的 `GITHUB_TOKEN`,只需要一个仓库 secret:
+`HOMEBREW_TAP_TOKEN`(只对 `tsgx1990/homebrew-moyu` 有 Contents 读写权限的
+fine-grained PAT,只有推 formula 的 job 拿得到)。
 
 ## 哪个 job 跑在哪台机器上
 
@@ -51,6 +55,12 @@ GitHub 已预告:托管的 Intel macOS 镜像会随 macOS 15 镜像一起退役(
 - 发版构建不恢复构建缓存,每次从锁定的依赖冷编译。
 - PR 只跑 `plan`(`pr-run-mode = "plan"`),碰不到任何持有发布令牌的 job;来自
   fork 的 PR 本来也拿不到 secret。
+- 桌面发版分两段:构建 job 只有只读令牌(它要跑 `pnpm install` 和所有 crate 的
+  build 脚本),安装包以 artifact 形式交给单独的 `release` job;后者持有
+  `contents: write`,不运行任何项目代码,四条腿都成功才一次性建 draft。
+- 尚未做到的:cargo-dist 生成的 CLI 构建 job 在环境变量里带着能写本仓库的
+  `GH_TOKEN`,同时编译所有依赖的 build 脚本。cargo-dist 没有给内置 job 配权限的
+  选项,要收紧只能手改生成文件并放弃 `dist generate --check`。
 
 ## 打 tag 前的冒烟
 
@@ -74,8 +84,10 @@ cargo-dist 侧没有等价入口,本机跑
    `gh run list --workflow=cli-release.yml` 盯到 `host` 与
    `publish-homebrew-formula` 绿。
 4. 桌面:`git tag app-vX.Y.Z && git push origin app-vX.Y.Z`;draft Release 出来
-   后核对资产,写安装说明(免签名,见 `docs/desktop-install.md`),publish。
-5. **重新钉 CLI 为 Latest**(本文开头的命令)。
+   后核对资产(2 个 `.dmg`、`.deb`、`.AppImage`、`-setup.exe`),写安装说明(免签名,
+   见 `docs/desktop-install.md`),用 `gh release edit app-vX.Y.Z --draft=false
+   --latest=false` publish。
+5. 确认 Latest 仍是 CLI:`gh release view --json tagName` 应为 `cli/vX.Y.Z`。
 6. 验证安装:`curl | sh` 安装脚本、`brew install tsgx1990/moyu/moyu-cli`、下载的
    tarball 校验和。
 7. 发版附带的 `source.tar.gz` 是本仓库在该 tag 的文件树(`git archive`)。发版前
