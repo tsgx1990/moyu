@@ -53,7 +53,7 @@ jobs:
         os: [ubuntu-22.04, windows-2022]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # rust-toolchain.toml pins 1.97.1 + rustfmt + clippy; `rustup show`
       # installs exactly that toolchain in the working directory.
@@ -83,7 +83,7 @@ jobs:
     name: desktop (typecheck / build / clippy)
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Same pinned toolchain as the CLI jobs (rust-toolchain.toml, resolved
       # by walking up from CWD — covers apps/desktop/src-tauri too, even
@@ -103,11 +103,11 @@ jobs:
       - name: Install Linux system dependencies
         uses: ./.github/actions/desktop-linux-deps
 
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 9.15.9
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 20
           cache: pnpm
@@ -163,7 +163,7 @@ jobs:
         ports:
           - 7777:8080
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install pinned toolchain
         run: rustup show
