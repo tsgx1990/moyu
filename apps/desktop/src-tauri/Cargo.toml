@@ -56,7 +56,7 @@ zeroize = "1"
 # downloaded attachment in the OS file manager" for reveal_attachment —
 # deliberately NOT the webview opener plugin, so no opener capability is
 # exposed to rendered content.
-opener = { version = "0.7", features = ["reveal"] }
+opener = { version = "0.8", features = ["reveal"] }
 # OS notifications. Called ONLY from Rust (session.rs's `maybe_notify`,
 # on the inbound-message event path) via the `NotificationExt` extension
 # trait — never through the plugin's JS bindings, so no `notification:*`
